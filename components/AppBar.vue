@@ -1,5 +1,5 @@
 <script setup>
-import { ref, mergeProps } from 'vue';
+import { ref, onMounted, mergeProps } from 'vue';
 import { useTraccar } from '~/composables/useTraccar';
 import { useMapData } from '~/composables/useMapData';
 import { setCookie, deleteCookie } from '~/utils/crypto';
@@ -55,7 +55,10 @@ async function domenu(item) {
     }
 }
 
-getTravels()
+// Load travels on component mount
+onMounted(() => {
+    getTravels()
+})
 </script>
 
 <template>
@@ -107,10 +110,10 @@ getTravels()
                 variant="flat"
                 color="transparent"
                 class="ml-2">
-                {{ distance }}
+                {{ Math.round(distance) }} km
             </v-chip>
-            <DateDialog :key="startdate" :datum="startdate" @getDate="setStartDate"/>
-            <DateDialog :key="startdate" :datum="stopdate" @getDate="setStopDate"/>
+            <DateDialog :key="`start-${startdate}`" :datum="startdate" @getDate="setStartDate"/>
+            <DateDialog :key="`stop-${stopdate}`" :datum="stopdate" @getDate="setStopDate"/>
         </template>
         <template v-slot:append>
             <v-btn

@@ -61,6 +61,10 @@ export const useTraccar = () => {
         stopdate.value = new Date(travel.value.bis)
       }
 
+      // Automatically render the map after loading travels
+      const { renderMap } = useMapData()
+      await renderMap()
+
       return data
     } catch (error) {
       console.error('Error fetching travels:', error)

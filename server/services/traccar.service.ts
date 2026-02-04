@@ -46,36 +46,42 @@ export class TraccarService {
    * Update cache with new data since last cached position
    */
   private async updateCache(deviceId: number): Promise<void> {
-    const lastPosition = getLastRoutePosition(deviceId)
-    if (!lastPosition) return
+    try {
+      const lastPosition = getLastRoutePosition(deviceId)
+      if (!lastPosition) return
 
-    const lastDate = lastPosition.fixTime
-    const now = new Date().toISOString()
+      // Convert fixTime to proper ISO format (Traccar expects ISO 8601)
+      const lastDate = new Date(lastPosition.fixTime).toISOString()
+      const now = new Date().toISOString()
 
-    console.log(`Updating cache from ${lastDate} to ${now}`)
+      console.log(`Updating cache from ${lastDate} to ${now}`)
 
-    // Fetch new data
-    const newPositions = await this.client.getRoute(deviceId, lastDate, now)
+      // Fetch new data
+      const newPositions = await this.client.getRoute(deviceId, lastDate, now)
 
-    // Filter out positions already in cache
-    const filteredPositions = newPositions.filter(p => p.id > lastPosition.id)
+      // Filter out positions already in cache
+      const filteredPositions = newPositions.filter(p => p.id > lastPosition.id)
 
-    if (filteredPositions.length === 0) {
-      console.log('No new positions to add')
-      return
+      if (filteredPositions.length === 0) {
+        console.log('No new positions to add')
+        return
+      }
+
+      // Analyze new route segment
+      const { route, standstills } = await this.analyzeExtendedRoute(
+        filteredPositions,
+        lastPosition.totalDistance
+      )
+
+      // Save to cache
+      saveRoutePositions(route, deviceId)
+      saveStandstillPeriods(standstills, deviceId)
+
+      console.log(`Added ${route.length} new positions, ${standstills.length} new standstills`)
+    } catch (error) {
+      console.error('Error updating cache:', error)
+      // Don't throw - allow using existing cache data
     }
-
-    // Analyze new route segment
-    const { route, standstills } = await this.analyzeExtendedRoute(
-      filteredPositions,
-      lastPosition.totalDistance
-    )
-
-    // Save to cache
-    saveRoutePositions(route, deviceId)
-    saveStandstillPeriods(standstills, deviceId)
-
-    console.log(`Added ${route.length} new positions, ${standstills.length} new standstills`)
   }
 
   /**

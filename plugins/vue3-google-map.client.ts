@@ -1,12 +1,4 @@
-import VueGoogleMaps from 'vue3-google-map'
-
 export default defineNuxtPlugin((nuxtApp) => {
-  const config = useRuntimeConfig()
-
-  nuxtApp.vueApp.use(VueGoogleMaps, {
-    load: {
-      key: config.public.googleMapsApiKey,
-      libraries: 'places,geometry',
-    },
-  })
+  // vue3-google-map is auto-imported, no need to register as plugin
+  // Just ensure the API key is available via runtime config
 })

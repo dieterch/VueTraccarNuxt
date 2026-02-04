@@ -42,8 +42,8 @@ export default defineEventHandler(async (event) => {
     const center = calculateCenter(bounds)
     const zoom = calculateZoom(bounds)
 
-    // Get total distance (from last position)
-    const distance = route[route.length - 1].totalDistance
+    // Calculate trip distance (end - start)
+    const distance = route[route.length - 1].totalDistance - route[0].totalDistance
 
     // Create polyline (array of lat/lng)
     const polygone = route.map(p => ({

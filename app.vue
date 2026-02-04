@@ -2,11 +2,12 @@
 import { ref } from 'vue'
 import { useTraccar } from '~/composables/useTraccar'
 import { useMapData } from '~/composables/useMapData'
-import { hashPassword } from '~/utils/crypto'
 
-const config = useRuntimeConfig();
-const vueTraccarPassword = String(config.vueTraccarPassword);
-const vueTraccarHash = hashPassword(vueTraccarPassword);
+// Note: Authentication is disabled (SSO forward-auth mode)
+// If you need password authentication, uncomment below and set hash
+// import { hashPassword } from '~/utils/crypto'
+// const vueTraccarHash = hashPassword('your-password')
+const vueTraccarHash = '';
 
 const {
   startdate,

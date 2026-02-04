@@ -1,5 +1,5 @@
 <script setup>
-import { ref, defineEmits, defineProps , onMounted } from 'vue';
+import { ref, onMounted } from 'vue';
 import { hashPassword, validatePassword, getCookie, setCookie, deleteCookie } from "~/utils/crypto";
 
 const dialog = ref(false);

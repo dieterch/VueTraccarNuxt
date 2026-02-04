@@ -10,6 +10,34 @@ export class TravelAnalyzer {
   private travelPatches: TravelsYaml = {}
 
   /**
+   * Strip Plus Code from address (e.g., "2HCR+WM Krk, Croatia" → "Krk, Croatia")
+   */
+  private stripPlusCode(address: string): string {
+    // Plus Code pattern: 4 chars + plus sign + 2-3 chars, followed by space
+    return address.replace(/^[A-Z0-9]{4}\+[A-Z0-9]{2,3}\s+/, '')
+  }
+
+  /**
+   * Find patches for travel key with fuzzy matching
+   * Tries exact match first, then without Plus Code
+   */
+  private findPatches(address: string): Partial<TravelPatch> {
+    // Try exact match first
+    if (this.travelPatches[address]) {
+      return this.travelPatches[address]
+    }
+
+    // Try without Plus Code
+    const stripped = this.stripPlusCode(address)
+    if (stripped !== address && this.travelPatches[stripped]) {
+      console.log(`Matched '${address}' → '${stripped}' (Plus Code stripped)`)
+      return this.travelPatches[stripped]
+    }
+
+    return {}
+  }
+
+  /**
    * Check if geofence exit event is valid
    */
   private isExitValid(events: TraccarEvent[], index: number): boolean {
@@ -159,9 +187,18 @@ export class TravelAnalyzer {
     const travelKey = farthest.address
     console.log(`Farthest standstill: ${travelKey} (distance ${farthest.distance.toFixed(1)} km)`)
 
-    // Get patches for this travel
-    const patches = this.travelPatches[travelKey] || {}
+    // Get patches for this travel (with fuzzy matching)
+    const patches = this.findPatches(travelKey)
     console.log(`Patches found for '${travelKey}':`, patches)
+
+    // Debug: Show available patch keys if no match found
+    if (Object.keys(patches).length === 0 && Object.keys(this.travelPatches).length > 0) {
+      console.log(`Available patch keys (${Object.keys(this.travelPatches).length}):`)
+      Object.keys(this.travelPatches).forEach(key => {
+        console.log(`  - "${key}"`)
+      })
+      console.log(`Address without Plus Code: "${this.stripPlusCode(travelKey)}"`)
+    }
 
     // Check if excluded
     if (patches.exclude) {

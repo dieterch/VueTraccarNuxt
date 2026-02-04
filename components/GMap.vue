@@ -15,8 +15,20 @@ import MDDialog from "./MDDialog.vue";
 const config = useRuntimeConfig();
 const maps_api_key = config.public.googleMapsApiKey;
 
+// Debug logging
+console.log('GMap component loaded');
+console.log('API Key present:', !!maps_api_key);
+console.log('API Key length:', maps_api_key?.length);
+
 const { polygone, center, zoom, locations, togglemarkers, togglepath } = useMapData();
 const { getDocument } = useDocuments();
+
+// Debug map state
+console.log('Initial map state:', {
+  center: center.value,
+  zoom: zoom.value,
+  polygoneLength: polygone.value?.length
+});
 
 const flightPath = ref({
   path: polygone.value,
@@ -148,14 +160,22 @@ function copyToClipboard(key) {
 </script>
 
 <template>
-  <GoogleMap
-    ref="mapRef"
-    :api-key="maps_api_key"
-    style="width: 100%; height: calc(100vh - 48px)"
-    :center="center"
-    :zoom="zoom"
-    @click="closeInfoWindows"
-  >
+  <div style="width: 100%; height: calc(100vh - 48px); position: relative;">
+    <!-- Debug info -->
+    <div v-if="!maps_api_key" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border: 2px solid red; z-index: 1000;">
+      <h2>Google Maps API Key Missing!</h2>
+      <p>Please check your .env file and ensure NUXT_PUBLIC_GOOGLE_MAPS_API_KEY is set.</p>
+    </div>
+
+    <GoogleMap
+      v-if="maps_api_key"
+      ref="mapRef"
+      :api-key="maps_api_key"
+      style="width: 100%; height: 100%"
+      :center="center"
+      :zoom="zoom"
+      @click="closeInfoWindows"
+    >
     <Polyline v-if="togglepath" :options="flightPath" />
     <MarkerCluster v-if="togglemarkers">
       <Marker
@@ -207,10 +227,10 @@ function copyToClipboard(key) {
                 <div v-if="wordpressPosts[location.key] && wordpressPosts[location.key].length > 0">
                   <div v-for="post in wordpressPosts[location.key].slice(0, 3)" :key="post.id" style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #e0e0e0">
                     <h4 style="margin: 0 0 5px 0; font-size: 1em">
-                      <a :href="post.link" target="_blank" style="color: #1976d2; text-decoration: none; font-weight: 500">{{ post.title }}</a>
+                      <a :href="post.link" target="_blank" style="color: #1976d2; text-decoration: none; font-weight: 500">{{ post.title.rendered }}</a>
                     </h4>
                     <div style="font-size: 0.85em; color: #666; margin-bottom: 5px">{{ new Date(post.date).toLocaleDateString("de-DE") }}</div>
-                    <div style="font-size: 0.9em; line-height: 1.4; color: #333">{{ post.excerpt.replace(/<[^>]*>/g, '').substring(0, 150) }}...</div>
+                    <div style="font-size: 0.9em; line-height: 1.4; color: #333">{{ post.excerpt.rendered.replace(/<[^>]*>/g, '').substring(0, 150) }}...</div>
                   </div>
 
                   <div v-if="wordpressPosts[location.key].length > 3">
@@ -261,9 +281,10 @@ function copyToClipboard(key) {
         </InfoWindow>
       </Marker>
     </MarkerCluster>
-    
+    </GoogleMap>
+
     <MDDialog :content="content" :file="file" :mode="mode" :key="mddialog" :dialog="mddialog" @dialog="(e) => { mddialog = e; }" />
-  </GoogleMap>
+  </div>
 </template>
 
 <style>

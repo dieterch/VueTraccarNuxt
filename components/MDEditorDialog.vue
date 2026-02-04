@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, defineEmits, defineProps , onMounted } from 'vue';
+import { ref, onMounted } from 'vue';
 import { MdEditor } from 'md-editor-v3';
 import type { ExposeParam } from 'md-editor-v3';
 import 'md-editor-v3/lib/style.css';

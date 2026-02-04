@@ -1,5 +1,5 @@
 <script setup>
-import { ref, defineEmits, defineProps } from 'vue'
+import { ref } from 'vue'
 import { useDocuments } from '~/composables/useDocuments';
 import { MdPreview, MdCatalog } from 'md-editor-v3';
 import 'md-editor-v3/lib/preview.css';
