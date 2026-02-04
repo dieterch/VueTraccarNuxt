@@ -181,22 +181,24 @@ function copyToClipboard(key) {
               <p><a target="_blank" :href="GoogleMapsLink(location.lat, location.lng)">Link zu Google Maps</a></p>
 
               <table style="width: 100%; text-align: left; margin-top: 5px">
-                <tr>
-                  <th>Lat, Lng</th>
-                  <td>{{ location.lat.toFixed(2) }}, {{ location.lng.toFixed(2) }}</td>
-                </tr>
-                <tr>
-                  <th>von</th>
-                  <td>{{ location.von }}</td>
-                </tr>
-                <tr>
-                  <th>bis</th>
-                  <td>{{ location.bis }}</td>
-                </tr>
-                <tr>
-                  <th>Dauer</th>
-                  <td>{{ location.period }}h</td>
-                </tr>
+                <tbody>
+                  <tr>
+                    <th>Lat, Lng</th>
+                    <td>{{ location.lat.toFixed(2) }}, {{ location.lng.toFixed(2) }}</td>
+                  </tr>
+                  <tr>
+                    <th>von</th>
+                    <td>{{ location.von }}</td>
+                  </tr>
+                  <tr>
+                    <th>bis</th>
+                    <td>{{ location.bis }}</td>
+                  </tr>
+                  <tr>
+                    <th>Dauer</th>
+                    <td>{{ location.period }}h</td>
+                  </tr>
+                </tbody>
               </table>
 
               <div style="margin-top: 15px; border-top: 2px solid #1976d2; padding-top: 15px">

@@ -1,14 +1,12 @@
-import { createVueGoogleMaps } from 'vue3-google-map'
+import VueGoogleMaps from 'vue3-google-map'
 
 export default defineNuxtPlugin((nuxtApp) => {
   const config = useRuntimeConfig()
 
-  const vueGoogleMaps = createVueGoogleMaps({
+  nuxtApp.vueApp.use(VueGoogleMaps, {
     load: {
       key: config.public.googleMapsApiKey,
-      libraries: ['places', 'geometry'],
+      libraries: 'places,geometry',
     },
   })
-
-  nuxtApp.vueApp.use(vueGoogleMaps)
 })
