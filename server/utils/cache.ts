@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3'
-import { join } from 'path'
+import { join, dirname } from 'path'
+import { mkdirSync, existsSync } from 'fs'
 import type { RoutePosition, StandstillPeriod } from '~/types/traccar'
 
 let db: Database.Database | null = null
@@ -7,6 +8,13 @@ let db: Database.Database | null = null
 function getDb(): Database.Database {
   if (!db) {
     const dbPath = join(process.cwd(), 'data', 'cache', 'route.db')
+
+    // Ensure the directory exists
+    const dbDir = dirname(dbPath)
+    if (!existsSync(dbDir)) {
+      mkdirSync(dbDir, { recursive: true })
+    }
+
     db = new Database(dbPath)
 
     // Enable WAL mode for better performance
