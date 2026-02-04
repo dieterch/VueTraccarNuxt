@@ -13,7 +13,7 @@ const KML_COLORS = [
 interface KMLOptions {
   name: string
   maxPoints?: number
-  standstills?: StandstillPeriod[]
+  standstills?: (StandstillPeriod & { customTitle?: string })[]
 }
 
 /**
@@ -116,9 +116,10 @@ export function generateKML(positions: RoutePosition[], options: KMLOptions): st
       const durationHours = standstill.period.toFixed(1)
       const fromDate = new Date(standstill.von).toLocaleString()
       const toDate = new Date(standstill.bis).toLocaleString()
+      const title = getStandstillTitle(standstill)
 
       lines.push(`      <Placemark>`)
-      lines.push(`        <name>Standstill ${i + 1}</name>`)
+      lines.push(`        <name>${escapeXml(title)}</name>`)
       lines.push(`        <description><![CDATA[`)
       lines.push(`          <b>Duration:</b> ${durationHours} hours<br/>`)
       lines.push(`          <b>From:</b> ${fromDate}<br/>`)
@@ -145,6 +146,40 @@ export function generateKML(positions: RoutePosition[], options: KMLOptions): st
   lines.push(`</kml>`)
 
   return lines.join('\n')
+}
+
+/**
+ * Strip Plus Code from address (e.g., "2HCR+WM Krk, Croatia" → "Krk, Croatia")
+ */
+function stripPlusCode(address: string): string {
+  // Plus Code pattern: 4 chars + plus sign + 2-3 chars, followed by space
+  return address.replace(/^[A-Z0-9]{4}\+[A-Z0-9]{2,3}\s+/, '')
+}
+
+/**
+ * Get a descriptive title for a standstill location
+ */
+function getStandstillTitle(standstill: StandstillPeriod & { customTitle?: string }): string {
+  // First priority: use custom title from travels.yml / WordPress if available
+  if (standstill.customTitle) {
+    return standstill.customTitle
+  }
+
+  // Second priority: use the address without Plus Code as the title
+  if (standstill.address) {
+    const cleanAddress = stripPlusCode(standstill.address)
+    if (cleanAddress && cleanAddress.trim()) {
+      return cleanAddress
+    }
+  }
+
+  // Third priority: fallback to country name if address is not available
+  if (standstill.country) {
+    return standstill.country
+  }
+
+  // Last resort: use coordinates
+  return `${standstill.latitude.toFixed(4)}, ${standstill.longitude.toFixed(4)}`
 }
 
 /**

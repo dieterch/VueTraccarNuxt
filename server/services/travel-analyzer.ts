@@ -38,6 +38,15 @@ export class TravelAnalyzer {
   }
 
   /**
+   * Get custom title for an address from travel patches
+   * Returns undefined if no custom title is found
+   */
+  getTitleForAddress(address: string): string | undefined {
+    const patches = this.findPatches(address)
+    return patches.title
+  }
+
+  /**
    * Check if geofence exit event is valid
    */
   private isExitValid(events: TraccarEvent[], index: number): boolean {

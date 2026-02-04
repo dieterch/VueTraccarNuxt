@@ -1,5 +1,6 @@
 import { createTraccarService } from '../services/traccar.service'
 import { generateKML } from '../services/kml-generator'
+import { createWordPressService } from '../services/wordpress.service'
 
 export default defineEventHandler(async (event) => {
   try {
@@ -14,6 +15,7 @@ export default defineEventHandler(async (event) => {
     }
 
     const traccarService = createTraccarService()
+    const wordpressService = createWordPressService()
 
     // Get route data
     const route = await traccarService.getRouteData(deviceId, from, to)
@@ -31,12 +33,36 @@ export default defineEventHandler(async (event) => {
     // Filter standstills to match the time range
     const fromTime = new Date(from).getTime()
     const toTime = new Date(to).getTime()
-    const filteredStandstills = standstills.filter(s => {
+    const filtered = standstills.filter(s => {
       const standstillStart = new Date(s.von).getTime()
       const standstillEnd = new Date(s.bis).getTime()
       // Include standstill if it overlaps with the requested time range
       return standstillStart <= toTime && standstillEnd >= fromTime
     })
+
+    // Fetch WordPress titles for each standstill
+    const filteredStandstills = await Promise.all(
+      filtered.map(async (s) => {
+        let customTitle: string | undefined
+
+        try {
+          // Try to get WordPress post with the standstill key as tag
+          const posts = await wordpressService.getPostsByTag(s.key, 1)
+          if (posts && posts.length > 0) {
+            customTitle = posts[0].title.rendered
+            console.log(`Found WordPress title for ${s.key}: ${customTitle}`)
+          }
+        } catch (error) {
+          // Silently fail if WordPress is not available or post not found
+          console.log(`No WordPress title found for ${s.key}`)
+        }
+
+        return {
+          ...s,
+          customTitle
+        }
+      })
+    )
 
     // Generate KML
     const kmlName = name || `Route_${from}_${to}`
