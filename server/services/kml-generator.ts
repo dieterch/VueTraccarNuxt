@@ -1,4 +1,4 @@
-import type { RoutePosition } from '~/types/traccar'
+import type { RoutePosition, StandstillPeriod } from '~/types/traccar'
 
 const KML_COLORS = [
   'ff0000ff', // Red (AABBGGRR format)
@@ -13,13 +13,14 @@ const KML_COLORS = [
 interface KMLOptions {
   name: string
   maxPoints?: number
+  standstills?: StandstillPeriod[]
 }
 
 /**
  * Generate KML file content from route positions
  */
 export function generateKML(positions: RoutePosition[], options: KMLOptions): string {
-  const { name, maxPoints = 500 } = options
+  const { name, maxPoints = 500, standstills = [] } = options
 
   // Pick random color
   const color = KML_COLORS[Math.floor(Math.random() * KML_COLORS.length)]
@@ -39,7 +40,7 @@ export function generateKML(positions: RoutePosition[], options: KMLOptions): st
   lines.push(`    <name>${escapeXml(name)}</name>`)
   lines.push(`    <open>1</open>`)
 
-  // Shared style
+  // Shared style for route
   lines.push(`    <Style id="routeStyle">`)
   lines.push(`      <LineStyle>`)
   lines.push(`        <color>${color}</color>`)
@@ -56,6 +57,20 @@ export function generateKML(positions: RoutePosition[], options: KMLOptions): st
   lines.push(`          <href>http://maps.google.com/mapfiles/kml/paddle/pink-stars.png</href>`)
   lines.push(`        </Icon>`)
   lines.push(`      </IconStyle>`)
+  lines.push(`    </Style>`)
+
+  // Style for standstill markers
+  lines.push(`    <Style id="standstillStyle">`)
+  lines.push(`      <IconStyle>`)
+  lines.push(`        <color>ff0000ff</color>`) // Red color
+  lines.push(`        <scale>1.2</scale>`)
+  lines.push(`        <Icon>`)
+  lines.push(`          <href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href>`)
+  lines.push(`        </Icon>`)
+  lines.push(`      </IconStyle>`)
+  lines.push(`      <LabelStyle>`)
+  lines.push(`        <scale>0.9</scale>`)
+  lines.push(`      </LabelStyle>`)
   lines.push(`    </Style>`)
 
   // Folder for line strings
@@ -90,6 +105,42 @@ export function generateKML(positions: RoutePosition[], options: KMLOptions): st
   }
 
   lines.push(`    </Folder>`)
+
+  // Folder for standstill markers
+  if (standstills.length > 0) {
+    lines.push(`    <Folder>`)
+    lines.push(`      <name>Standstill Locations</name>`)
+
+    for (let i = 0; i < standstills.length; i++) {
+      const standstill = standstills[i]
+      const durationHours = standstill.period.toFixed(1)
+      const fromDate = new Date(standstill.von).toLocaleString()
+      const toDate = new Date(standstill.bis).toLocaleString()
+
+      lines.push(`      <Placemark>`)
+      lines.push(`        <name>Standstill ${i + 1}</name>`)
+      lines.push(`        <description><![CDATA[`)
+      lines.push(`          <b>Duration:</b> ${durationHours} hours<br/>`)
+      lines.push(`          <b>From:</b> ${fromDate}<br/>`)
+      lines.push(`          <b>To:</b> ${toDate}<br/>`)
+      if (standstill.address) {
+        lines.push(`          <b>Address:</b> ${escapeXml(standstill.address)}<br/>`)
+      }
+      if (standstill.country) {
+        lines.push(`          <b>Country:</b> ${escapeXml(standstill.country)}<br/>`)
+      }
+      lines.push(`          <b>Coordinates:</b> ${standstill.latitude.toFixed(6)}, ${standstill.longitude.toFixed(6)}`)
+      lines.push(`        ]]></description>`)
+      lines.push(`        <styleUrl>#standstillStyle</styleUrl>`)
+      lines.push(`        <Point>`)
+      lines.push(`          <coordinates>${standstill.longitude},${standstill.latitude},0</coordinates>`)
+      lines.push(`        </Point>`)
+      lines.push(`      </Placemark>`)
+    }
+
+    lines.push(`    </Folder>`)
+  }
+
   lines.push(`  </Document>`)
   lines.push(`</kml>`)
 

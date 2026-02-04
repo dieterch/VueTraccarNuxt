@@ -25,11 +25,25 @@ export default defineEventHandler(async (event) => {
       })
     }
 
+    // Get standstill periods
+    const standstills = await traccarService.getStandstillPeriods(deviceId)
+
+    // Filter standstills to match the time range
+    const fromTime = new Date(from).getTime()
+    const toTime = new Date(to).getTime()
+    const filteredStandstills = standstills.filter(s => {
+      const standstillStart = new Date(s.von).getTime()
+      const standstillEnd = new Date(s.bis).getTime()
+      // Include standstill if it overlaps with the requested time range
+      return standstillStart <= toTime && standstillEnd >= fromTime
+    })
+
     // Generate KML
     const kmlName = name || `Route_${from}_${to}`
     const kmlContent = generateKML(route, {
       name: kmlName,
-      maxPoints: 500
+      maxPoints: 500,
+      standstills: filteredStandstills
     })
 
     // Set headers for file download
