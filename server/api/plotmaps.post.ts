@@ -63,10 +63,8 @@ export default defineEventHandler(async (event) => {
     // Convert to markers
     const locations: MapMarker[] = standstills.map(s => ({
       key: s.key,
-      position: {
-        lat: s.latitude,
-        lng: s.longitude
-      },
+      lat: s.latitude,
+      lng: s.longitude,
       title: translateCountry(s.country),
       von: s.von,
       bis: s.bis,

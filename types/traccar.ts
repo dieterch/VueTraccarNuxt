@@ -86,10 +86,8 @@ export interface MapCenter {
 
 export interface MapMarker {
   key: string
-  position: {
-    lat: number
-    lng: number
-  }
+  lat: number
+  lng: number
   title: string
   von: string
   bis: string
