@@ -23,6 +23,9 @@ export const useMapData = () => {
   // Settings dialog
   const settingsdialog = useState<boolean>('settingsdialog', () => false)
 
+  // About dialog
+  const aboutdialog = useState<boolean>('aboutdialog', () => false)
+
   // Loading state
   const isLoading = useState<boolean>('mapLoading', () => false)
 
@@ -76,6 +79,7 @@ export const useMapData = () => {
     toggleroute,
     toggleEvents,
     settingsdialog,
+    aboutdialog,
 
     // Loading
     isLoading,
