@@ -520,6 +520,22 @@ watch(() => configdialog.value, (isOpen) => {
 
           <!-- Settings Form -->
           <div v-else>
+            <!-- Security Notice -->
+            <v-row>
+              <v-col cols="12">
+                <v-alert
+                  type="info"
+                  variant="tonal"
+                  density="compact"
+                  icon="mdi-shield-lock"
+                >
+                  <div class="text-body-2">
+                    <strong>Security:</strong> Passwords and API keys are masked (••••••••) for protection. Leave them masked to keep current values, or enter new values to change them.
+                  </div>
+                </v-alert>
+              </v-col>
+            </v-row>
+
             <!-- Error Message -->
             <v-row v-if="errorMessage">
               <v-col cols="12">
@@ -590,7 +606,8 @@ watch(() => configdialog.value, (isOpen) => {
                     :type="showPassword.traccarPassword ? 'text' : 'password'"
                     :append-inner-icon="showPassword.traccarPassword ? 'mdi-eye-off' : 'mdi-eye'"
                     @click:append-inner="showPassword.traccarPassword = !showPassword.traccarPassword"
-                    hint="Password for Traccar login"
+                    :placeholder="settings.traccarPassword === '••••••••' ? 'Current password hidden - enter new password to change' : ''"
+                    hint="Leave masked value to keep current password, or enter new password to change"
                     persistent-hint
                     class="mb-3"
                   ></v-text-field>
@@ -637,7 +654,8 @@ watch(() => configdialog.value, (isOpen) => {
                     :type="showPassword.googleMapsApiKey ? 'text' : 'password'"
                     :append-inner-icon="showPassword.googleMapsApiKey ? 'mdi-eye-off' : 'mdi-eye'"
                     @click:append-inner="showPassword.googleMapsApiKey = !showPassword.googleMapsApiKey"
-                    hint="API key for Google Maps integration"
+                    :placeholder="settings.googleMapsApiKey === '••••••••' ? 'Current API key hidden - enter new key to change' : ''"
+                    hint="Leave masked value to keep current API key, or enter new key to change"
                     persistent-hint
                     class="mb-3"
                   ></v-text-field>
@@ -692,7 +710,8 @@ watch(() => configdialog.value, (isOpen) => {
                     :type="showPassword.wordpressAppPassword ? 'text' : 'password'"
                     :append-inner-icon="showPassword.wordpressAppPassword ? 'mdi-eye-off' : 'mdi-eye'"
                     @click:append-inner="showPassword.wordpressAppPassword = !showPassword.wordpressAppPassword"
-                    hint="WordPress application password (not regular password)"
+                    :placeholder="settings.wordpressAppPassword === '••••••••' ? 'Current password hidden - enter new password to change' : ''"
+                    hint="Leave masked value to keep current password, or enter new application password to change"
                     persistent-hint
                     class="mb-3"
                   ></v-text-field>
@@ -726,7 +745,8 @@ watch(() => configdialog.value, (isOpen) => {
                     :type="showPassword.vueTraccarPassword ? 'text' : 'password'"
                     :append-inner-icon="showPassword.vueTraccarPassword ? 'mdi-eye-off' : 'mdi-eye'"
                     @click:append-inner="showPassword.vueTraccarPassword = !showPassword.vueTraccarPassword"
-                    hint="Password to access this application"
+                    :placeholder="settings.vueTraccarPassword === '••••••••' ? 'Current password hidden - enter new password to change' : ''"
+                    hint="Leave masked value to keep current password, or enter new password to change"
                     persistent-hint
                     class="mb-3"
                   ></v-text-field>
@@ -740,7 +760,8 @@ watch(() => configdialog.value, (isOpen) => {
                     :type="showPassword.settingsPassword ? 'text' : 'password'"
                     :append-inner-icon="showPassword.settingsPassword ? 'mdi-eye-off' : 'mdi-eye'"
                     @click:append-inner="showPassword.settingsPassword = !showPassword.settingsPassword"
-                    hint="Password to access settings dialog"
+                    :placeholder="settings.settingsPassword === '••••••••' ? 'Current password hidden - enter new password to change' : ''"
+                    hint="Leave masked value to keep current password, or enter new password to change"
                     persistent-hint
                     class="mb-3"
                   ></v-text-field>

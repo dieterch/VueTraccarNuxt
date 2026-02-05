@@ -1,10 +1,29 @@
-import { writeFile } from 'fs/promises'
-import { stringify as stringifyYaml } from 'yaml'
+import { writeFile, readFile } from 'fs/promises'
+import { stringify as stringifyYaml, parse as parseYaml } from 'yaml'
 import { join } from 'path'
 
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event)
+    const config = useRuntimeConfig()
+
+    // Load existing settings to preserve unchanged passwords
+    let existingSettings: any = {}
+    try {
+      const yamlPath = join(process.cwd(), 'data', 'settings.yml')
+      const content = await readFile(yamlPath, 'utf-8')
+      existingSettings = parseYaml(content) || {}
+    } catch (error: any) {
+      // If file doesn't exist, use config defaults
+      if (error.code !== 'ENOENT') {
+        throw error
+      }
+    }
+
+    // Helper to check if a value is masked or empty (means "don't change")
+    const shouldKeepExisting = (value: string | undefined | null): boolean => {
+      return !value || value === '••••••••'
+    }
 
     // Build settings object with all provided values
     const settings: any = {}
@@ -12,23 +31,44 @@ export default defineEventHandler(async (event) => {
     // Traccar API
     if (body.traccarUrl) settings.traccarUrl = body.traccarUrl
     if (body.traccarUser) settings.traccarUser = body.traccarUser
-    if (body.traccarPassword) settings.traccarPassword = body.traccarPassword
+    // Only update password if a new value is provided (not masked)
+    if (shouldKeepExisting(body.traccarPassword)) {
+      settings.traccarPassword = existingSettings.traccarPassword || config.traccarPassword
+    } else {
+      settings.traccarPassword = body.traccarPassword
+    }
     if (body.traccarDeviceId) settings.traccarDeviceId = parseInt(body.traccarDeviceId)
     if (body.traccarDeviceName) settings.traccarDeviceName = body.traccarDeviceName
 
     // Google Maps
-    if (body.googleMapsApiKey) settings.googleMapsApiKey = body.googleMapsApiKey
+    if (shouldKeepExisting(body.googleMapsApiKey)) {
+      settings.googleMapsApiKey = existingSettings.googleMapsApiKey || config.public.googleMapsApiKey
+    } else {
+      settings.googleMapsApiKey = body.googleMapsApiKey
+    }
     if (body.googleMapsMapId) settings.googleMapsMapId = body.googleMapsMapId
 
     // WordPress
     if (body.wordpressUrl) settings.wordpressUrl = body.wordpressUrl
     if (body.wordpressUser) settings.wordpressUser = body.wordpressUser
-    if (body.wordpressAppPassword) settings.wordpressAppPassword = body.wordpressAppPassword
+    if (shouldKeepExisting(body.wordpressAppPassword)) {
+      settings.wordpressAppPassword = existingSettings.wordpressAppPassword || config.wordpressAppPassword
+    } else {
+      settings.wordpressAppPassword = body.wordpressAppPassword
+    }
     if (body.wordpressCacheDuration) settings.wordpressCacheDuration = parseInt(body.wordpressCacheDuration)
 
     // Application
-    if (body.vueTraccarPassword) settings.vueTraccarPassword = body.vueTraccarPassword
-    if (body.settingsPassword) settings.settingsPassword = body.settingsPassword
+    if (shouldKeepExisting(body.vueTraccarPassword)) {
+      settings.vueTraccarPassword = existingSettings.vueTraccarPassword || config.vueTraccarPassword
+    } else {
+      settings.vueTraccarPassword = body.vueTraccarPassword
+    }
+    if (shouldKeepExisting(body.settingsPassword)) {
+      settings.settingsPassword = existingSettings.settingsPassword || config.settingsPassword
+    } else {
+      settings.settingsPassword = body.settingsPassword
+    }
     if (body.homeMode !== undefined) settings.homeMode = body.homeMode
     if (body.homeLatitude) settings.homeLatitude = body.homeLatitude
     if (body.homeLongitude) settings.homeLongitude = body.homeLongitude

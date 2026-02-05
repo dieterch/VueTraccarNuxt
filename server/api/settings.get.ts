@@ -5,6 +5,11 @@ import { join } from 'path'
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
 
+  // Helper function to mask sensitive values
+  const maskSecret = (value: string | undefined | null): string => {
+    return value ? '••••••••' : ''
+  }
+
   try {
     const yamlPath = join(process.cwd(), 'data', 'settings.yml')
     const content = await readFile(yamlPath, 'utf-8')
@@ -16,23 +21,23 @@ export default defineEventHandler(async (event) => {
         // Traccar API
         traccarUrl: data.traccarUrl || config.traccarUrl,
         traccarUser: data.traccarUser || config.traccarUser,
-        traccarPassword: data.traccarPassword || config.traccarPassword,
+        traccarPassword: maskSecret(data.traccarPassword || config.traccarPassword),
         traccarDeviceId: data.traccarDeviceId || config.traccarDeviceId,
         traccarDeviceName: data.traccarDeviceName || config.traccarDeviceName,
 
         // Google Maps
-        googleMapsApiKey: data.googleMapsApiKey || config.public.googleMapsApiKey,
+        googleMapsApiKey: maskSecret(data.googleMapsApiKey || config.public.googleMapsApiKey),
         googleMapsMapId: data.googleMapsMapId || config.public.googleMapsMapId,
 
         // WordPress
         wordpressUrl: data.wordpressUrl || config.wordpressUrl,
         wordpressUser: data.wordpressUser || config.wordpressUser,
-        wordpressAppPassword: data.wordpressAppPassword || config.wordpressAppPassword,
+        wordpressAppPassword: maskSecret(data.wordpressAppPassword || config.wordpressAppPassword),
         wordpressCacheDuration: data.wordpressCacheDuration || config.wordpressCacheDuration,
 
         // Application
-        vueTraccarPassword: data.vueTraccarPassword || config.vueTraccarPassword,
-        settingsPassword: data.settingsPassword || config.settingsPassword,
+        vueTraccarPassword: maskSecret(data.vueTraccarPassword || config.vueTraccarPassword),
+        settingsPassword: maskSecret(data.settingsPassword || config.settingsPassword),
         homeMode: data.homeMode !== undefined ? data.homeMode : config.homeMode,
         homeLatitude: data.homeLatitude || config.homeLatitude,
         homeLongitude: data.homeLongitude || config.homeLongitude,
@@ -56,30 +61,30 @@ export default defineEventHandler(async (event) => {
     }
   } catch (error: any) {
     if (error.code === 'ENOENT') {
-      // Settings file doesn't exist, return defaults from .env
+      // Settings file doesn't exist, return defaults from .env (with masked secrets)
       return {
         success: true,
         settings: {
           // Traccar API
           traccarUrl: config.traccarUrl,
           traccarUser: config.traccarUser,
-          traccarPassword: config.traccarPassword,
+          traccarPassword: maskSecret(config.traccarPassword),
           traccarDeviceId: config.traccarDeviceId,
           traccarDeviceName: config.traccarDeviceName,
 
           // Google Maps
-          googleMapsApiKey: config.public.googleMapsApiKey,
+          googleMapsApiKey: maskSecret(config.public.googleMapsApiKey),
           googleMapsMapId: config.public.googleMapsMapId,
 
           // WordPress
           wordpressUrl: config.wordpressUrl,
           wordpressUser: config.wordpressUser,
-          wordpressAppPassword: config.wordpressAppPassword,
+          wordpressAppPassword: maskSecret(config.wordpressAppPassword),
           wordpressCacheDuration: config.wordpressCacheDuration,
 
           // Application
-          vueTraccarPassword: config.vueTraccarPassword,
-          settingsPassword: config.settingsPassword,
+          vueTraccarPassword: maskSecret(config.vueTraccarPassword),
+          settingsPassword: maskSecret(config.settingsPassword),
           homeMode: config.homeMode,
           homeLatitude: config.homeLatitude,
           homeLongitude: config.homeLongitude,
