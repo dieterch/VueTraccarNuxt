@@ -28,8 +28,18 @@ const { getDocument } = useDocuments();
 // Side trip loading state
 const loadingSideTrips = ref<Record<string, boolean>>({});
 
+// Track which standstills have loaded side trips
+const loadedSideTrips = ref<Record<string, boolean>>({});
+
 // Standstill time adjustments (in minutes)
 const standstillAdjustments = ref<Record<string, { start: number, end: number }>>({});
+
+// Time adjustment dialog state
+const adjustmentDialog = ref(false);
+const currentAdjustmentLocation = ref(null);
+const dialogPosition = ref({ x: 20, y: 20 });
+const isDragging = ref(false);
+const dragOffset = ref({ x: 0, y: 0 });
 
 // Polyline visibility state
 const polylineVisibility = ref<Record<string, boolean>>({});
@@ -172,6 +182,38 @@ async function loadStandstillAdjustment(standstillKey: string) {
   }
 }
 
+// Open adjustment dialog
+function openAdjustmentDialog(location) {
+  currentAdjustmentLocation.value = location
+  adjustmentDialog.value = true
+}
+
+// Drag handlers for floating dialog
+function startDrag(event: MouseEvent) {
+  isDragging.value = true
+  dragOffset.value = {
+    x: event.clientX - dialogPosition.value.x,
+    y: event.clientY - dialogPosition.value.y
+  }
+  document.addEventListener('mousemove', onDrag)
+  document.addEventListener('mouseup', stopDrag)
+}
+
+function onDrag(event: MouseEvent) {
+  if (isDragging.value) {
+    dialogPosition.value = {
+      x: event.clientX - dragOffset.value.x,
+      y: event.clientY - dragOffset.value.y
+    }
+  }
+}
+
+function stopDrag() {
+  isDragging.value = false
+  document.removeEventListener('mousemove', onDrag)
+  document.removeEventListener('mouseup', stopDrag)
+}
+
 // Adjust start or end time
 async function adjustStandstillTime(standstillKey: string, type: 'start' | 'end', delta: number) {
   if (!standstillAdjustments.value[standstillKey]) {
@@ -191,6 +233,14 @@ async function adjustStandstillTime(standstillKey: string, type: 'start' | 'end'
         endAdjustmentMinutes: adjustment.end
       }
     })
+
+    // Auto-reload side trips if they were already loaded for this standstill
+    if (loadedSideTrips.value[standstillKey]) {
+      const location = locations.value.find(loc => loc.key === standstillKey)
+      if (location) {
+        await loadStandstillSideTrips(location, true)
+      }
+    }
   } catch (error) {
     console.error('Error saving standstill adjustment:', error)
   }
@@ -209,6 +259,14 @@ async function resetStandstillAdjustments(standstillKey: string) {
         endAdjustmentMinutes: 0
       }
     })
+
+    // Auto-reload side trips if they were already loaded for this standstill
+    if (loadedSideTrips.value[standstillKey]) {
+      const location = locations.value.find(loc => loc.key === standstillKey)
+      if (location) {
+        await loadStandstillSideTrips(location, true)
+      }
+    }
   } catch (error) {
     console.error('Error resetting standstill adjustment:', error)
   }
@@ -221,9 +279,20 @@ function getAdjustedTime(dateString: string, adjustmentMinutes: number): string 
   return date.toISOString().slice(0, 16).replace('T', ' ')
 }
 
-async function loadStandstillSideTrips(location) {
+// Wrapper for clearSideTrips to also clear tracking
+function clearAllSideTrips() {
+  clearSideTrips()
+  loadedSideTrips.value = {}
+}
+
+async function loadStandstillSideTrips(location, isReload = false) {
   try {
     loadingSideTrips.value[location.key] = true
+
+    // If reloading (after adjustment), clear existing side trips first
+    if (isReload) {
+      clearSideTrips()
+    }
 
     // Get enabled side trip devices from settings
     const settingsResponse = await $fetch('/api/settings')
@@ -260,6 +329,9 @@ async function loadStandstillSideTrips(location) {
     console.log(`   Devices:`, deviceIds)
 
     await fetchSideTrips(fromAdjusted, toAdjusted, deviceIds)
+
+    // Mark this standstill as having loaded side trips
+    loadedSideTrips.value[location.key] = true
 
     console.log(`✅ Side trips loaded for ${location.key}`)
     console.log(`   sideTripPolylines.value now has ${sideTripPolylines.value.length} polylines`)
@@ -409,7 +481,7 @@ function copyToClipboard(key) {
           icon="mdi-close"
           size="x-small"
           variant="text"
-          @click="clearSideTrips"
+          @click="clearAllSideTrips"
           style="float: right;"
           title="Clear side trips"
         ></v-btn>
@@ -504,12 +576,12 @@ function copyToClipboard(key) {
         :options="{ position: location }"
         @click="handleMarkerClick(location)"
       >
-        <InfoWindow 
-          :options="{ 
-            position: location, 
-            minWidth: 350,
-            maxWidth: 400
-          }" 
+        <InfoWindow
+          :options="{
+            position: location,
+            minWidth: 300,
+            maxWidth: 350
+          }"
           v-model="location.infowindow"
         >
           <div id="content">
@@ -527,70 +599,12 @@ function copyToClipboard(key) {
                     <td>{{ location.lat.toFixed(2) }}, {{ location.lng.toFixed(2) }}</td>
                   </tr>
                   <tr>
-                    <th style="vertical-align: top; padding-top: 8px;">von</th>
-                    <td>
-                      <div style="display: flex; align-items: center; gap: 4px;">
-                        <button
-                          @click="adjustStandstillTime(location.key, 'start', -60)"
-                          style="padding: 2px 6px; font-size: 12px; cursor: pointer; border: 1px solid #ccc; background: white; border-radius: 3px;"
-                          title="Start 1 Stunde früher"
-                        >-1h</button>
-                        <button
-                          @click="adjustStandstillTime(location.key, 'start', -15)"
-                          style="padding: 2px 6px; font-size: 12px; cursor: pointer; border: 1px solid #ccc; background: white; border-radius: 3px;"
-                          title="Start 15 Minuten früher"
-                        >-15m</button>
-                        <button
-                          @click="adjustStandstillTime(location.key, 'start', 15)"
-                          style="padding: 2px 6px; font-size: 12px; cursor: pointer; border: 1px solid #ccc; background: white; border-radius: 3px;"
-                          title="Start 15 Minuten später"
-                        >+15m</button>
-                        <button
-                          @click="adjustStandstillTime(location.key, 'start', 60)"
-                          style="padding: 2px 6px; font-size: 12px; cursor: pointer; border: 1px solid #ccc; background: white; border-radius: 3px;"
-                          title="Start 1 Stunde später"
-                        >+1h</button>
-                      </div>
-                      <div style="margin-top: 4px; font-size: 0.9em;">
-                        {{ getAdjustedTime(location.von, standstillAdjustments[location.key]?.start || 0) }}
-                        <span v-if="standstillAdjustments[location.key]?.start" style="color: #1976d2; font-weight: bold;">
-                          ({{ standstillAdjustments[location.key].start > 0 ? '+' : '' }}{{ standstillAdjustments[location.key].start }}min)
-                        </span>
-                      </div>
-                    </td>
+                    <th>von</th>
+                    <td>{{ location.von }}</td>
                   </tr>
                   <tr>
-                    <th style="vertical-align: top; padding-top: 8px;">bis</th>
-                    <td>
-                      <div style="display: flex; align-items: center; gap: 4px;">
-                        <button
-                          @click="adjustStandstillTime(location.key, 'end', -60)"
-                          style="padding: 2px 6px; font-size: 12px; cursor: pointer; border: 1px solid #ccc; background: white; border-radius: 3px;"
-                          title="Ende 1 Stunde früher"
-                        >-1h</button>
-                        <button
-                          @click="adjustStandstillTime(location.key, 'end', -15)"
-                          style="padding: 2px 6px; font-size: 12px; cursor: pointer; border: 1px solid #ccc; background: white; border-radius: 3px;"
-                          title="Ende 15 Minuten früher"
-                        >-15m</button>
-                        <button
-                          @click="adjustStandstillTime(location.key, 'end', 15)"
-                          style="padding: 2px 6px; font-size: 12px; cursor: pointer; border: 1px solid #ccc; background: white; border-radius: 3px;"
-                          title="Ende 15 Minuten später"
-                        >+15m</button>
-                        <button
-                          @click="adjustStandstillTime(location.key, 'end', 60)"
-                          style="padding: 2px 6px; font-size: 12px; cursor: pointer; border: 1px solid #ccc; background: white; border-radius: 3px;"
-                          title="Ende 1 Stunde später"
-                        >+1h</button>
-                      </div>
-                      <div style="margin-top: 4px; font-size: 0.9em;">
-                        {{ getAdjustedTime(location.bis, standstillAdjustments[location.key]?.end || 0) }}
-                        <span v-if="standstillAdjustments[location.key]?.end" style="color: #1976d2; font-weight: bold;">
-                          ({{ standstillAdjustments[location.key].end > 0 ? '+' : '' }}{{ standstillAdjustments[location.key].end }}min)
-                        </span>
-                      </div>
-                    </td>
+                    <th>bis</th>
+                    <td>{{ location.bis }}</td>
                   </tr>
                   <tr>
                     <th>Dauer</th>
@@ -621,53 +635,40 @@ function copyToClipboard(key) {
                 <div v-else style="font-style: italic; color: #999; font-size: 0.9em">Lade Reiseberichte...</div>
               </div>
 
-              <div style="margin-top: 15px; border-top: 2px solid #ddd; padding-top: 15px; display: flex; flex-direction: column; gap: 8px;">
-                <v-btn color="primary" size="small" @click="openmddialog(location.key)" block>
-                  <v-icon icon="mdi-notebook-edit" class="mr-2"></v-icon>
-                  zum Tagebuch
-                </v-btn>
+              <div style="margin-top: 15px; border-top: 2px solid #ddd; padding-top: 15px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                  <v-btn color="primary" size="small" @click="openmddialog(location.key)">
+                    <v-icon icon="mdi-notebook-edit" size="small"></v-icon>
+                  </v-btn>
 
-                <div v-if="standstillAdjustments[location.key]?.start || standstillAdjustments[location.key]?.end" style="background: #e3f2fd; padding: 8px 10px; border-radius: 4px; font-size: 0.85em; color: #1565c0; display: flex; justify-content: space-between; align-items: center;">
-                  <div>
-                    ⚙️ Zeitanpassungen aktiv:
-                    <span v-if="standstillAdjustments[location.key]?.start">
-                      Start {{ standstillAdjustments[location.key].start > 0 ? '+' : '' }}{{ standstillAdjustments[location.key].start }}min
-                    </span>
-                    <span v-if="standstillAdjustments[location.key]?.start && standstillAdjustments[location.key]?.end">, </span>
-                    <span v-if="standstillAdjustments[location.key]?.end">
-                      Ende {{ standstillAdjustments[location.key].end > 0 ? '+' : '' }}{{ standstillAdjustments[location.key].end }}min
-                    </span>
-                  </div>
-                  <button
-                    @click="resetStandstillAdjustments(location.key)"
-                    style="padding: 2px 8px; font-size: 11px; cursor: pointer; border: 1px solid #1976d2; background: white; border-radius: 3px; color: #1976d2;"
-                    title="Anpassungen zurücksetzen"
-                  >↻ Reset</button>
+                  <v-btn
+                    color="warning"
+                    size="small"
+                    @click.stop="openAdjustmentDialog(location)"
+                  >
+                    <v-icon icon="mdi-clock-edit" size="small"></v-icon>
+                    {{ (standstillAdjustments[location.key]?.start || standstillAdjustments[location.key]?.end) ? '⚙️' : '' }}
+                  </v-btn>
+
+                  <v-btn
+                    color="success"
+                    size="small"
+                    @click.stop="loadStandstillSideTrips(location)"
+                    :loading="loadingSideTrips[location.key]"
+                    :disabled="loadingSideTrips[location.key]"
+                  >
+                    <v-icon icon="mdi-bicycle" size="small"></v-icon>
+                  </v-btn>
+
+                  <v-btn
+                    color="grey-darken-2"
+                    variant="outlined"
+                    size="small"
+                    @click.stop="copyToClipboard(location.key)"
+                  >
+                    <v-icon icon="mdi-content-copy" size="small"></v-icon>
+                  </v-btn>
                 </div>
-
-                <v-btn
-                  color="success"
-                  variant="elevated"
-                  size="small"
-                  @click.stop="loadStandstillSideTrips(location)"
-                  :loading="loadingSideTrips[location.key]"
-                  :disabled="loadingSideTrips[location.key]"
-                  block
-                >
-                  <v-icon icon="mdi-bicycle" class="mr-2"></v-icon>
-                  {{ (standstillAdjustments[location.key]?.start || standstillAdjustments[location.key]?.end) ? 'Reload Side Trips (Adjusted)' : 'Load Side Trips' }}
-                </v-btn>
-
-                <v-btn
-                  color="grey-darken-2"
-                  variant="outlined"
-                  size="small"
-                  @click.stop="copyToClipboard(location.key)"
-                  block
-                >
-                  <v-icon icon="mdi-content-copy" class="mr-2"></v-icon>
-                  {{ copiedKey === location.key ? '✓ Tag Copied!' : 'Copy WordPress Tag' }}
-                </v-btn>
               </div>
             </div>
           </div>
@@ -676,6 +677,140 @@ function copyToClipboard(key) {
     </MarkerCluster>
     </GoogleMap>
 
+    <!-- Compact Draggable Time Adjustment Panel -->
+    <div
+      v-if="adjustmentDialog && currentAdjustmentLocation"
+      :style="{
+        position: 'fixed',
+        left: `${dialogPosition.x}px`,
+        top: `${dialogPosition.y}px`,
+        zIndex: 1000,
+        width: '320px',
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        borderRadius: '8px',
+        boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+        border: '2px solid #ff9800',
+        cursor: isDragging ? 'grabbing' : 'default'
+      }"
+    >
+      <!-- Draggable Header -->
+      <div
+        @mousedown="startDrag"
+        style="
+          background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+          color: white;
+          padding: 8px 12px;
+          border-radius: 6px 6px 0 0;
+          cursor: grab;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          user-select: none;
+        "
+      >
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600;">
+          <v-icon icon="mdi-clock-edit" size="small" color="white"></v-icon>
+          Zeit anpassen
+        </div>
+        <v-icon
+          icon="mdi-close"
+          size="small"
+          color="white"
+          @click="adjustmentDialog = false"
+          style="cursor: pointer;"
+        ></v-icon>
+      </div>
+
+      <!-- Content -->
+      <div style="padding: 12px; font-size: 13px;">
+        <!-- Location Name -->
+        <div style="font-weight: 600; margin-bottom: 8px; color: #333;">
+          {{ currentAdjustmentLocation.address.split(",")[0] }}
+        </div>
+
+        <!-- Start Time -->
+        <div style="margin-bottom: 10px;">
+          <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
+            <v-icon icon="mdi-clock-start" size="x-small" color="primary"></v-icon>
+            <span style="font-weight: 500; font-size: 12px;">Start</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 4px;">
+            <button
+              @click="adjustStandstillTime(currentAdjustmentLocation.key, 'start', -60)"
+              style="padding: 4px; font-size: 11px; border: 1px solid #f44336; background: white; color: #f44336; border-radius: 4px; cursor: pointer;"
+            >-1h</button>
+            <button
+              @click="adjustStandstillTime(currentAdjustmentLocation.key, 'start', -15)"
+              style="padding: 4px; font-size: 11px; border: 1px solid #f44336; background: white; color: #f44336; border-radius: 4px; cursor: pointer;"
+            >-15m</button>
+            <button
+              @click="adjustStandstillTime(currentAdjustmentLocation.key, 'start', 15)"
+              style="padding: 4px; font-size: 11px; border: 1px solid #4caf50; background: white; color: #4caf50; border-radius: 4px; cursor: pointer;"
+            >+15m</button>
+            <button
+              @click="adjustStandstillTime(currentAdjustmentLocation.key, 'start', 60)"
+              style="padding: 4px; font-size: 11px; border: 1px solid #4caf50; background: white; color: #4caf50; border-radius: 4px; cursor: pointer;"
+            >+1h</button>
+          </div>
+          <div style="background: #e3f2fd; padding: 4px 8px; border-radius: 4px; text-align: center; font-size: 12px;">
+            {{ getAdjustedTime(currentAdjustmentLocation.von, standstillAdjustments[currentAdjustmentLocation.key]?.start || 0) }}
+            <span v-if="standstillAdjustments[currentAdjustmentLocation.key]?.start" style="color: #1976d2; font-weight: 600;">
+              ({{ standstillAdjustments[currentAdjustmentLocation.key].start > 0 ? '+' : '' }}{{ standstillAdjustments[currentAdjustmentLocation.key].start }}m)
+            </span>
+          </div>
+        </div>
+
+        <!-- End Time -->
+        <div style="margin-bottom: 10px;">
+          <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
+            <v-icon icon="mdi-clock-end" size="x-small" color="error"></v-icon>
+            <span style="font-weight: 500; font-size: 12px;">Ende</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 4px;">
+            <button
+              @click="adjustStandstillTime(currentAdjustmentLocation.key, 'end', -60)"
+              style="padding: 4px; font-size: 11px; border: 1px solid #f44336; background: white; color: #f44336; border-radius: 4px; cursor: pointer;"
+            >-1h</button>
+            <button
+              @click="adjustStandstillTime(currentAdjustmentLocation.key, 'end', -15)"
+              style="padding: 4px; font-size: 11px; border: 1px solid #f44336; background: white; color: #f44336; border-radius: 4px; cursor: pointer;"
+            >-15m</button>
+            <button
+              @click="adjustStandstillTime(currentAdjustmentLocation.key, 'end', 15)"
+              style="padding: 4px; font-size: 11px; border: 1px solid #4caf50; background: white; color: #4caf50; border-radius: 4px; cursor: pointer;"
+            >+15m</button>
+            <button
+              @click="adjustStandstillTime(currentAdjustmentLocation.key, 'end', 60)"
+              style="padding: 4px; font-size: 11px; border: 1px solid #4caf50; background: white; color: #4caf50; border-radius: 4px; cursor: pointer;"
+            >+1h</button>
+          </div>
+          <div style="background: #e3f2fd; padding: 4px 8px; border-radius: 4px; text-align: center; font-size: 12px;">
+            {{ getAdjustedTime(currentAdjustmentLocation.bis, standstillAdjustments[currentAdjustmentLocation.key]?.end || 0) }}
+            <span v-if="standstillAdjustments[currentAdjustmentLocation.key]?.end" style="color: #1976d2; font-weight: 600;">
+              ({{ standstillAdjustments[currentAdjustmentLocation.key].end > 0 ? '+' : '' }}{{ standstillAdjustments[currentAdjustmentLocation.key].end }}m)
+            </span>
+          </div>
+        </div>
+
+        <!-- Status/Actions -->
+        <div style="display: flex; gap: 4px; align-items: center;">
+          <button
+            v-if="standstillAdjustments[currentAdjustmentLocation.key]?.start || standstillAdjustments[currentAdjustmentLocation.key]?.end"
+            @click="resetStandstillAdjustments(currentAdjustmentLocation.key)"
+            style="flex: 1; padding: 6px; font-size: 11px; border: 1px solid #ff9800; background: white; color: #ff9800; border-radius: 4px; cursor: pointer; font-weight: 600;"
+          >
+            ↻ Reset
+          </button>
+          <div
+            v-if="loadedSideTrips[currentAdjustmentLocation.key]"
+            style="flex: 1; background: #c8e6c9; padding: 6px; border-radius: 4px; text-align: center; font-size: 11px; color: #2e7d32; font-weight: 600;"
+          >
+            ✓ Auto-Update
+          </div>
+        </div>
+      </div>
+    </div>
+
     <MDDialog :content="content" :file="file" :mode="mode" :key="mddialog" :dialog="mddialog" @dialog="(e) => { mddialog = e; }" />
   </div>
 </template>
@@ -683,12 +818,12 @@ function copyToClipboard(key) {
 <style>
 /* InfoWindow Styling - Größe begrenzen */
 :deep(.gm-style-iw) {
-  max-width: 400px !important;
+  max-width: 350px !important;
   max-height: 60vh !important;
 }
 
 :deep(.gm-style-iw-c) {
-  max-width: 400px !important;
+  max-width: 350px !important;
   max-height: 60vh !important;
   padding: 12px !important;
 }
