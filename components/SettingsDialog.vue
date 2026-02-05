@@ -14,7 +14,7 @@ const isAuthenticated = ref(false)
 const password = ref('')
 const passwordError = ref('')
 const verifyingPassword = ref(false)
-const authTimestamp = ref<number | null>(null)
+const authTimestamp = ref(null)
 
 // Available options from API
 const geofences = ref([])
