@@ -212,6 +212,26 @@ async function loadTravelPatches() {
   }
 }
 
+// Edit travel patch
+function editPatch(patch) {
+  newPatch.value = {
+    addressKey: patch.addressKey,
+    title: patch.title,
+    fromDate: patch.fromDate,
+    toDate: patch.toDate,
+    exclude: patch.exclude
+  }
+  editingPatch.value = patch.addressKey
+  showAddPatchForm.value = true
+}
+
+// Cancel editing
+function cancelEdit() {
+  editingPatch.value = null
+  showAddPatchForm.value = false
+  newPatch.value = { addressKey: '', title: '', fromDate: '', toDate: '', exclude: false }
+}
+
 // Save travel patch
 async function saveTravelPatch(patch) {
   try {
@@ -220,7 +240,9 @@ async function saveTravelPatch(patch) {
       body: patch
     })
     await loadTravelPatches()
-    successMessage.value = 'Travel patch saved successfully'
+    successMessage.value = editingPatch.value
+      ? 'Travel patch updated successfully'
+      : 'Travel patch saved successfully'
     editingPatch.value = null
     showAddPatchForm.value = false
     newPatch.value = { addressKey: '', title: '', fromDate: '', toDate: '', exclude: false }
@@ -767,13 +789,18 @@ watch(() => configdialog.value, (isOpen) => {
                     color="primary"
                     class="mb-4"
                     @click="showAddPatchForm = !showAddPatchForm"
+                    v-if="!showAddPatchForm"
                   >
                     <v-icon icon="mdi-plus" class="mr-2"></v-icon>
                     Add New Travel Patch
                   </v-btn>
 
-                  <!-- Add Patch Form -->
+                  <!-- Add/Edit Patch Form -->
                   <v-card v-if="showAddPatchForm" variant="outlined" class="mb-4">
+                    <v-card-title class="bg-grey-darken-3">
+                      <v-icon :icon="editingPatch ? 'mdi-pencil' : 'mdi-plus'" class="mr-2"></v-icon>
+                      {{ editingPatch ? 'Edit Travel Patch' : 'Add New Travel Patch' }}
+                    </v-card-title>
                     <v-card-text>
                       <v-text-field
                         v-model="newPatch.addressKey"
@@ -783,6 +810,7 @@ watch(() => configdialog.value, (isOpen) => {
                         hint="The destination address to match (e.g., 'Krk, Croatia')"
                         persistent-hint
                         class="mb-3"
+                        :readonly="!!editingPatch"
                       ></v-text-field>
 
                       <v-text-field
@@ -827,7 +855,7 @@ watch(() => configdialog.value, (isOpen) => {
                     </v-card-text>
                     <v-card-actions>
                       <v-spacer></v-spacer>
-                      <v-btn variant="text" @click="showAddPatchForm = false">Cancel</v-btn>
+                      <v-btn variant="text" @click="cancelEdit">Cancel</v-btn>
                       <v-btn
                         color="primary"
                         variant="elevated"
@@ -835,7 +863,7 @@ watch(() => configdialog.value, (isOpen) => {
                         :disabled="!newPatch.addressKey"
                       >
                         <v-icon icon="mdi-content-save" class="mr-2"></v-icon>
-                        Save
+                        {{ editingPatch ? 'Update' : 'Save' }}
                       </v-btn>
                     </v-card-actions>
                   </v-card>
@@ -878,6 +906,14 @@ watch(() => configdialog.value, (isOpen) => {
                       </v-list-item-subtitle>
 
                       <template v-slot:append>
+                        <v-btn
+                          icon="mdi-pencil"
+                          variant="text"
+                          size="small"
+                          color="primary"
+                          @click="editPatch(patch)"
+                          class="mr-1"
+                        ></v-btn>
                         <v-btn
                           icon="mdi-delete"
                           variant="text"
