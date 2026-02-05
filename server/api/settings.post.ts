@@ -27,6 +27,7 @@ export default defineEventHandler(async (event) => {
 
     // Application
     if (body.vueTraccarPassword) settings.vueTraccarPassword = body.vueTraccarPassword
+    if (body.settingsPassword) settings.settingsPassword = body.settingsPassword
     if (body.homeMode !== undefined) settings.homeMode = body.homeMode
     if (body.homeLatitude) settings.homeLatitude = body.homeLatitude
     if (body.homeLongitude) settings.homeLongitude = body.homeLongitude

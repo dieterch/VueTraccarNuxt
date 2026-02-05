@@ -9,6 +9,12 @@ const saving = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
 
+// Password protection
+const isAuthenticated = ref(false)
+const password = ref('')
+const passwordError = ref('')
+const verifyingPassword = ref(false)
+
 // Available options from API
 const geofences = ref([])
 const devices = ref([])
@@ -33,6 +39,7 @@ const settings = ref({
 
   // Application
   vueTraccarPassword: '',
+  settingsPassword: '',
   homeMode: false,
   homeLatitude: '',
   homeLongitude: '',
@@ -54,11 +61,45 @@ const showPassword = ref({
   traccarPassword: false,
   googleMapsApiKey: false,
   wordpressAppPassword: false,
-  vueTraccarPassword: false
+  vueTraccarPassword: false,
+  settingsPassword: false,
+  inputPassword: false
 })
 
 // Expansion panel state
 const expandedPanels = ref([0])
+
+// Verify password
+async function verifyPassword() {
+  if (!password.value) {
+    passwordError.value = 'Password is required'
+    return
+  }
+
+  verifyingPassword.value = true
+  passwordError.value = ''
+
+  try {
+    const response = await $fetch('/api/settings/verify-password', {
+      method: 'POST',
+      body: { password: password.value }
+    })
+
+    if (response.valid) {
+      isAuthenticated.value = true
+      password.value = ''
+      await loadSettings()
+    } else {
+      passwordError.value = 'Invalid password'
+      password.value = ''
+    }
+  } catch (error) {
+    console.error('Error verifying password:', error)
+    passwordError.value = 'Failed to verify password'
+  } finally {
+    verifyingPassword.value = false
+  }
+}
 
 // Load current settings and available options
 async function loadSettings() {
@@ -133,9 +174,18 @@ function onGeofenceSelected(id) {
 // Watch for dialog open
 watch(() => configdialog.value, (isOpen) => {
   if (isOpen) {
-    loadSettings()
+    // Reset authentication state when opening dialog
+    if (!isAuthenticated.value) {
+      password.value = ''
+      passwordError.value = ''
+    }
     successMessage.value = ''
     errorMessage.value = ''
+  } else {
+    // Reset authentication when closing dialog
+    isAuthenticated.value = false
+    password.value = ''
+    passwordError.value = ''
   }
 })
 </script>
@@ -157,8 +207,57 @@ watch(() => configdialog.value, (isOpen) => {
 
       <v-card-text class="pa-4" style="max-height: 70vh;">
         <v-container fluid>
+          <!-- Password Prompt -->
+          <div v-if="!isAuthenticated">
+            <v-row>
+              <v-col cols="12" class="text-center mb-4">
+                <v-icon icon="mdi-lock" size="64" color="primary"></v-icon>
+                <div class="text-h6 mt-4">Settings Password Required</div>
+                <div class="text-body-2 text-grey mt-2">
+                  Enter the settings password to access configuration
+                </div>
+              </v-col>
+            </v-row>
+
+            <v-row>
+              <v-col cols="12">
+                <v-text-field
+                  v-model="password"
+                  label="Settings Password"
+                  variant="outlined"
+                  density="comfortable"
+                  prepend-inner-icon="mdi-lock"
+                  :type="showPassword.inputPassword ? 'text' : 'password'"
+                  :append-inner-icon="showPassword.inputPassword ? 'mdi-eye-off' : 'mdi-eye'"
+                  @click:append-inner="showPassword.inputPassword = !showPassword.inputPassword"
+                  @keyup.enter="verifyPassword"
+                  :error-messages="passwordError"
+                  :disabled="verifyingPassword"
+                  autofocus
+                ></v-text-field>
+              </v-col>
+            </v-row>
+
+            <v-row>
+              <v-col cols="12" class="text-center">
+                <v-btn
+                  color="primary"
+                  variant="elevated"
+                  @click="verifyPassword"
+                  :loading="verifyingPassword"
+                  :disabled="!password"
+                  size="large"
+                  class="px-8"
+                >
+                  <v-icon icon="mdi-login" class="mr-2"></v-icon>
+                  Unlock Settings
+                </v-btn>
+              </v-col>
+            </v-row>
+          </div>
+
           <!-- Loading State -->
-          <v-row v-if="loading">
+          <v-row v-else-if="loading">
             <v-col cols="12" class="text-center">
               <v-progress-circular
                 indeterminate
@@ -370,6 +469,20 @@ watch(() => configdialog.value, (isOpen) => {
                     class="mb-3"
                   ></v-text-field>
 
+                  <v-text-field
+                    v-model="settings.settingsPassword"
+                    label="Settings Password"
+                    variant="outlined"
+                    density="comfortable"
+                    prepend-inner-icon="mdi-lock-alert"
+                    :type="showPassword.settingsPassword ? 'text' : 'password'"
+                    :append-inner-icon="showPassword.settingsPassword ? 'mdi-eye-off' : 'mdi-eye'"
+                    @click:append-inner="showPassword.settingsPassword = !showPassword.settingsPassword"
+                    hint="Password to access settings dialog"
+                    persistent-hint
+                    class="mb-3"
+                  ></v-text-field>
+
                   <v-switch
                     v-model="settings.homeMode"
                     label="Home Mode"
@@ -528,11 +641,12 @@ watch(() => configdialog.value, (isOpen) => {
         <v-btn
           variant="text"
           @click="configdialog = false"
-          :disabled="saving"
+          :disabled="saving || verifyingPassword"
         >
-          Cancel
+          {{ isAuthenticated ? 'Cancel' : 'Close' }}
         </v-btn>
         <v-btn
+          v-if="isAuthenticated"
           color="primary"
           variant="elevated"
           @click="saveSettings"

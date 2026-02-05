@@ -31,6 +31,7 @@ export default defineEventHandler(async (event) => {
 
         // Application
         vueTraccarPassword: data.vueTraccarPassword || config.vueTraccarPassword,
+        settingsPassword: data.settingsPassword || config.settingsPassword,
         homeMode: data.homeMode !== undefined ? data.homeMode : config.homeMode,
         homeLatitude: data.homeLatitude || config.homeLatitude,
         homeLongitude: data.homeLongitude || config.homeLongitude,
@@ -71,6 +72,7 @@ export default defineEventHandler(async (event) => {
 
           // Application
           vueTraccarPassword: config.vueTraccarPassword,
+          settingsPassword: config.settingsPassword,
           homeMode: config.homeMode,
           homeLatitude: config.homeLatitude,
           homeLongitude: config.homeLongitude,
