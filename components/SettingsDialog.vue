@@ -30,6 +30,7 @@ const settings = ref({
 
   // Google Maps
   googleMapsApiKey: '',
+  googleMapsMapId: '',
 
   // WordPress
   wordpressUrl: '',
@@ -503,6 +504,17 @@ watch(() => configdialog.value, (isOpen) => {
                     :append-inner-icon="showPassword.googleMapsApiKey ? 'mdi-eye-off' : 'mdi-eye'"
                     @click:append-inner="showPassword.googleMapsApiKey = !showPassword.googleMapsApiKey"
                     hint="API key for Google Maps integration"
+                    persistent-hint
+                    class="mb-3"
+                  ></v-text-field>
+
+                  <v-text-field
+                    v-model="settings.googleMapsMapId"
+                    label="Google Maps Map ID"
+                    variant="outlined"
+                    density="comfortable"
+                    prepend-inner-icon="mdi-map"
+                    hint="Map ID for Vector Maps and Advanced Markers"
                     persistent-hint
                   ></v-text-field>
                 </v-expansion-panel-text>

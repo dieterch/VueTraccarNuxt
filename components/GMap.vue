@@ -14,11 +14,13 @@ import MDDialog from "./MDDialog.vue";
 
 const config = useRuntimeConfig();
 const maps_api_key = config.public.googleMapsApiKey;
+const maps_map_id = config.public.googleMapsMapId;
 
 // Debug logging
 console.log('GMap component loaded');
 console.log('API Key present:', !!maps_api_key);
 console.log('API Key length:', maps_api_key?.length);
+console.log('Map ID:', maps_map_id);
 
 const { polygone, center, zoom, locations, togglemarkers, togglepath } = useMapData();
 const { getDocument } = useDocuments();
@@ -171,6 +173,7 @@ function copyToClipboard(key) {
       v-if="maps_api_key"
       ref="mapRef"
       :api-key="maps_api_key"
+      :map-id="maps_map_id"
       style="width: 100%; height: 100%"
       :center="center"
       :zoom="zoom"

@@ -142,7 +142,7 @@ export class WordPressClient {
           tags: post.tags,
           _links: post._links,
           featured_image: featuredImage
-        } as WordPressPost & { featured_image?: string }
+        } as WordPressPost
       })
 
       console.log(`WordPress: Found ${processed.length} posts for tag '${tag}'`)

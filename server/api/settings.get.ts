@@ -22,6 +22,7 @@ export default defineEventHandler(async (event) => {
 
         // Google Maps
         googleMapsApiKey: data.googleMapsApiKey || config.public.googleMapsApiKey,
+        googleMapsMapId: data.googleMapsMapId || config.public.googleMapsMapId,
 
         // WordPress
         wordpressUrl: data.wordpressUrl || config.wordpressUrl,
@@ -63,6 +64,7 @@ export default defineEventHandler(async (event) => {
 
           // Google Maps
           googleMapsApiKey: config.public.googleMapsApiKey,
+          googleMapsMapId: config.public.googleMapsMapId,
 
           // WordPress
           wordpressUrl: config.wordpressUrl,

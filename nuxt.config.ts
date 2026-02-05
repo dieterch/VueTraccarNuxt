@@ -18,6 +18,7 @@ try {
       traccarDeviceId: 'TRACCAR_DEVICE_ID',
       traccarDeviceName: 'TRACCAR_DEVICE_NAME',
       googleMapsApiKey: 'NUXT_PUBLIC_GOOGLE_MAPS_API_KEY',
+      googleMapsMapId: 'NUXT_PUBLIC_GOOGLE_MAPS_MAP_ID',
       wordpressUrl: 'WORDPRESS_URL',
       wordpressUser: 'WORDPRESS_USER',
       wordpressAppPassword: 'WORDPRESS_APP_PASSWORD',
@@ -92,6 +93,7 @@ export default defineNuxtConfig({
     public: {
       // Client-accessible
       googleMapsApiKey: process.env.NUXT_PUBLIC_GOOGLE_MAPS_API_KEY,
+      googleMapsMapId: process.env.NUXT_PUBLIC_GOOGLE_MAPS_MAP_ID,
     },
   },
 })

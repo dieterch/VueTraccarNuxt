@@ -18,6 +18,7 @@ export default defineEventHandler(async (event) => {
 
     // Google Maps
     if (body.googleMapsApiKey) settings.googleMapsApiKey = body.googleMapsApiKey
+    if (body.googleMapsMapId) settings.googleMapsMapId = body.googleMapsMapId
 
     // WordPress
     if (body.wordpressUrl) settings.wordpressUrl = body.wordpressUrl

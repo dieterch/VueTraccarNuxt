@@ -21,6 +21,7 @@ export interface WordPressPost {
   }
   author: number
   featured_media: number
+  featured_image?: string | null
   comment_status: string
   ping_status: string
   sticky: boolean
