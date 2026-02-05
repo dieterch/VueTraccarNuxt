@@ -14,6 +14,7 @@ const isAuthenticated = ref(false)
 const password = ref('')
 const passwordError = ref('')
 const verifyingPassword = ref(false)
+const authTimestamp = ref<number | null>(null)
 
 // Available options from API
 const geofences = ref([])
@@ -121,6 +122,7 @@ async function verifyPassword() {
 
     if (response.valid) {
       isAuthenticated.value = true
+      authTimestamp.value = Date.now()
       password.value = ''
       await loadSettings()
     } else {
@@ -398,17 +400,41 @@ function onSideTripDeviceSelected(id) {
 
 // Watch for dialog open
 watch(() => configdialog.value, (isOpen) => {
+  const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000 // 12 hours in milliseconds
+
   if (isOpen) {
-    // Reset authentication state when opening dialog
+    // Check if authentication has expired (12 hours have passed)
+    if (authTimestamp.value) {
+      const elapsed = Date.now() - authTimestamp.value
+      if (elapsed >= TWELVE_HOURS_MS) {
+        // Authentication expired, reset
+        isAuthenticated.value = false
+        authTimestamp.value = null
+        password.value = ''
+        passwordError.value = ''
+      }
+    }
+
+    // Clear input fields if not authenticated
     if (!isAuthenticated.value) {
       password.value = ''
       passwordError.value = ''
     }
+
     successMessage.value = ''
     errorMessage.value = ''
   } else {
-    // Reset authentication when closing dialog
-    isAuthenticated.value = false
+    // When closing dialog, check if 12 hours have passed before resetting
+    if (authTimestamp.value) {
+      const elapsed = Date.now() - authTimestamp.value
+      if (elapsed >= TWELVE_HOURS_MS) {
+        // Authentication expired, reset
+        isAuthenticated.value = false
+        authTimestamp.value = null
+      }
+    }
+
+    // Always clear temporary input fields
     password.value = ''
     passwordError.value = ''
   }
