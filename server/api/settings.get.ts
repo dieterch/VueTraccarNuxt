@@ -51,6 +51,7 @@ export default defineEventHandler(async (event) => {
         // Side Trip Tracking
         sideTripEnabled: data.sideTripEnabled !== undefined ? data.sideTripEnabled : false,
         sideTripDevices: data.sideTripDevices || [],
+        sideTripBufferHours: data.sideTripBufferHours !== undefined ? data.sideTripBufferHours : 6,
       }
     }
   } catch (error: any) {
@@ -97,6 +98,7 @@ export default defineEventHandler(async (event) => {
           // Side Trip Tracking
           sideTripEnabled: false,
           sideTripDevices: [],
+          sideTripBufferHours: 6,
         }
       }
     }

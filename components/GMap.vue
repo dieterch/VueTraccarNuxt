@@ -1,5 +1,5 @@
-<script setup>
-import { ref, nextTick } from "vue";
+<script setup lang="ts">
+import { ref, computed, nextTick } from "vue";
 import {
   GoogleMap,
   MarkerCluster,
@@ -22,8 +22,45 @@ console.log('API Key present:', !!maps_api_key);
 console.log('API Key length:', maps_api_key?.length);
 console.log('Map ID:', maps_map_id);
 
-const { polygone, polylines, center, zoom, locations, togglemarkers, togglepath } = useMapData();
+const { polygone, polylines, sideTripPolylines, center, zoom, locations, togglemarkers, togglepath, isLoading, loadingMessage, fetchSideTrips, clearSideTrips } = useMapData();
 const { getDocument } = useDocuments();
+
+// Side trip loading state
+const loadingSideTrips = ref<Record<string, boolean>>({});
+
+// Polyline visibility state
+const polylineVisibility = ref<Record<string, boolean>>({});
+
+// Computed: visible polylines
+const visiblePolylines = computed(() => {
+  return polylines.value.filter((polyline, index) =>
+    isPolylineVisible(`main-${polyline.deviceId}`)
+  )
+})
+
+// Computed: visible side trip polylines
+const visibleSideTripPolylines = computed(() => {
+  return sideTripPolylines.value.filter((polyline, index) =>
+    isPolylineVisible(`side-${polyline.deviceId}-${index}`)
+  )
+})
+
+// Toggle polyline visibility
+function togglePolylineVisibility(key: string) {
+  // Ensure reactivity by creating a new object
+  const current = polylineVisibility.value[key] ?? true
+  polylineVisibility.value = {
+    ...polylineVisibility.value,
+    [key]: !current
+  }
+  console.log(`Toggled ${key} visibility:`, polylineVisibility.value[key])
+}
+
+// Check if polyline is visible (default: true)
+function isPolylineVisible(key: string): boolean {
+  const visible = polylineVisibility.value[key]
+  return visible === undefined ? true : visible
+}
 
 // Debug map state
 console.log('Initial map state:', {
@@ -111,6 +148,59 @@ async function handleMarkerClick(location) {
   }
 }
 
+// Load side trips for a specific standstill
+async function loadStandstillSideTrips(location) {
+  try {
+    loadingSideTrips.value[location.key] = true
+
+    // Get enabled side trip devices from settings
+    const settingsResponse = await $fetch('/api/settings')
+    if (!settingsResponse.success || !settingsResponse.settings.sideTripEnabled) {
+      alert('Side trip tracking is not enabled. Please enable it in settings first.')
+      return
+    }
+
+    const deviceIds = settingsResponse.settings.sideTripDevices
+      ?.filter(d => d.enabled)
+      .map(d => d.deviceId) || []
+
+    if (deviceIds.length === 0) {
+      alert('No secondary devices configured. Please add devices in settings.')
+      return
+    }
+
+    // Apply time buffer
+    const bufferHours = settingsResponse.settings.sideTripBufferHours || 0
+    const fromDate = new Date(location.von)
+    const toDate = new Date(location.bis)
+
+    fromDate.setHours(fromDate.getHours() - bufferHours)
+    toDate.setHours(toDate.getHours() + bufferHours)
+
+    const fromWithBuffer = fromDate.toISOString().slice(0, 16).replace('T', ' ')
+    const toWithBuffer = toDate.toISOString().slice(0, 16).replace('T', ' ')
+
+    console.log(`🚴 Loading side trips for ${location.key}`)
+    console.log(`   Original period: ${location.von} to ${location.bis}`)
+    console.log(`   With ${bufferHours}h buffer: ${fromWithBuffer} to ${toWithBuffer}`)
+    console.log(`   Devices:`, deviceIds)
+
+    await fetchSideTrips(fromWithBuffer, toWithBuffer, deviceIds)
+
+    console.log(`✅ Side trips loaded for ${location.key}`)
+    console.log(`   sideTripPolylines.value now has ${sideTripPolylines.value.length} polylines`)
+    if (sideTripPolylines.value.length > 0) {
+      console.log(`   First polyline:`, sideTripPolylines.value[0])
+      console.log(`   Path length:`, sideTripPolylines.value[0].path.length)
+    }
+  } catch (error) {
+    console.error('Error loading side trips:', error)
+    alert('Failed to load side trips. Check console for details.')
+  } finally {
+    loadingSideTrips.value[location.key] = false
+  }
+}
+
 function copyToClipboard(key) {
   console.log("📋 Attempting to copy:", key);
 
@@ -163,6 +253,25 @@ function copyToClipboard(key) {
 
 <template>
   <div style="width: 100%; height: calc(100vh - 48px); position: relative;">
+    <!-- Loading Overlay -->
+    <div
+      v-if="isLoading"
+      style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 2000; backdrop-filter: blur(2px);"
+    >
+      <v-progress-circular
+        indeterminate
+        color="primary"
+        size="64"
+        width="6"
+      ></v-progress-circular>
+      <div style="margin-top: 20px; font-size: 1.1em; font-weight: 500; color: #1976d2;">
+        {{ loadingMessage }}
+      </div>
+      <div style="margin-top: 8px; font-size: 0.85em; color: #666; max-width: 400px; text-align: center;">
+        This may take a moment for side trips during long travel periods
+      </div>
+    </div>
+
     <!-- Debug info -->
     <div v-if="!maps_api_key" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border: 2px solid red; z-index: 1000;">
       <h2>Google Maps API Key Missing!</h2>
@@ -179,10 +288,10 @@ function copyToClipboard(key) {
       :zoom="zoom"
       @click="closeInfoWindows"
     >
-    <!-- Render multiple polylines (new multi-device support) -->
-    <template v-if="togglepath && polylines.length > 0">
+    <!-- Render main device polylines -->
+    <template v-if="togglepath && visiblePolylines.length > 0">
       <Polyline
-        v-for="(polyline, index) in polylines"
+        v-for="(polyline, index) in visiblePolylines"
         :key="`polyline-${polyline.deviceId}-${index}`"
         :options="{
           path: polyline.path,
@@ -195,19 +304,64 @@ function copyToClipboard(key) {
       />
     </template>
 
+    <!-- Render side trip polylines -->
+    <template v-if="togglepath && visibleSideTripPolylines.length > 0">
+      <Polyline
+        v-for="(polyline, index) in visibleSideTripPolylines"
+        :key="`sidetrip-${polyline.deviceId}-${index}`"
+        :options="{
+          path: polyline.path,
+          geodesic: true,
+          strokeColor: polyline.color,
+          strokeOpacity: 0.8,
+          strokeWeight: polyline.lineWeight,
+          zIndex: 75
+        }"
+      />
+    </template>
+
     <!-- Fallback to single polyline (backward compatibility) -->
     <Polyline v-else-if="togglepath && polygone.length > 0" :options="flightPath" />
 
     <!-- Legend for multiple routes -->
     <div
-      v-if="togglepath && polylines.length > 1"
+      v-if="togglepath && (polylines.length > 1 || sideTripPolylines.length > 0)"
       style="position: absolute; top: 10px; right: 10px; background: white; padding: 12px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); z-index: 1000; max-width: 250px;"
     >
-      <div style="font-weight: 600; font-size: 0.9em; margin-bottom: 8px; color: #333;">Routes</div>
+      <div style="font-weight: 600; font-size: 0.9em; margin-bottom: 4px; color: #333;">
+        Routes
+        <v-btn
+          v-if="sideTripPolylines.length > 0"
+          icon="mdi-close"
+          size="x-small"
+          variant="text"
+          @click="clearSideTrips"
+          style="float: right;"
+          title="Clear side trips"
+        ></v-btn>
+      </div>
+      <div style="font-size: 0.7em; color: #999; margin-bottom: 8px; font-style: italic;">
+        Click to show/hide routes
+      </div>
+
+      <!-- Main routes -->
       <div
         v-for="polyline in polylines"
         :key="`legend-${polyline.deviceId}`"
-        style="display: flex; align-items: center; margin-bottom: 6px; font-size: 0.85em;"
+        @click="togglePolylineVisibility(`main-${polyline.deviceId}`)"
+        :style="{
+          display: 'flex',
+          alignItems: 'center',
+          marginBottom: '6px',
+          fontSize: '0.85em',
+          cursor: 'pointer',
+          padding: '4px 6px',
+          borderRadius: '4px',
+          backgroundColor: 'transparent',
+          opacity: isPolylineVisible(`main-${polyline.deviceId}`) ? 1 : 0.4,
+          transition: 'all 0.2s'
+        }"
+        :title="isPolylineVisible(`main-${polyline.deviceId}`) ? 'Click to hide' : 'Click to show'"
       >
         <div
           :style="{
@@ -222,6 +376,50 @@ function copyToClipboard(key) {
           {{ polyline.deviceName }}
           <span v-if="polyline.isMainDevice" style="color: #999; font-size: 0.9em;">(main)</span>
         </span>
+        <v-icon
+          :icon="isPolylineVisible(`main-${polyline.deviceId}`) ? 'mdi-eye' : 'mdi-eye-off'"
+          size="x-small"
+          style="margin-left: auto; opacity: 0.5;"
+        ></v-icon>
+      </div>
+
+      <!-- Side trip routes -->
+      <div
+        v-for="(polyline, index) in sideTripPolylines"
+        :key="`legend-side-${polyline.deviceId}-${index}`"
+        @click="togglePolylineVisibility(`side-${polyline.deviceId}-${index}`)"
+        :style="{
+          display: 'flex',
+          alignItems: 'center',
+          marginBottom: '6px',
+          fontSize: '0.85em',
+          cursor: 'pointer',
+          padding: '4px 6px',
+          borderRadius: '4px',
+          backgroundColor: 'transparent',
+          opacity: isPolylineVisible(`side-${polyline.deviceId}-${index}`) ? 0.8 : 0.3,
+          transition: 'all 0.2s'
+        }"
+        :title="isPolylineVisible(`side-${polyline.deviceId}-${index}`) ? 'Click to hide' : 'Click to show'"
+      >
+        <div
+          :style="{
+            width: '20px',
+            height: polyline.lineWeight + 'px',
+            backgroundColor: polyline.color,
+            marginRight: '8px',
+            borderRadius: '2px'
+          }"
+        ></div>
+        <span style="color: #666;">
+          {{ polyline.deviceName }}
+          <span style="color: #999; font-size: 0.9em;">(side trip)</span>
+        </span>
+        <v-icon
+          :icon="isPolylineVisible(`side-${polyline.deviceId}-${index}`) ? 'mdi-eye' : 'mdi-eye-off'"
+          size="x-small"
+          style="margin-left: auto; opacity: 0.5;"
+        ></v-icon>
       </div>
     </div>
 
@@ -291,39 +489,36 @@ function copyToClipboard(key) {
                 <div v-else style="font-style: italic; color: #999; font-size: 0.9em">Lade Reiseberichte...</div>
               </div>
 
-              <div style="margin-top: 15px; padding: 10px; background-color: #f5f5f5; border-radius: 4px; border: 1px solid #ddd">
-                <div style="font-size: 0.75em; color: #666; margin-bottom: 6px; font-weight: 500">WordPress Tag Key:</div>
-                <div style="display: flex; align-items: center; gap: 8px">
-                  <input
-                    type="text"
-                    readonly
-                    :value="location.key"
-                    :id="'key-' + location.key"
-                    style="flex: 1; font-size: 0.85em; color: #333; font-family: monospace; padding: 6px 8px; border: 1px solid #ccc; border-radius: 3px; background: white"
-                  />
-                  <button
-                    @click.stop="copyToClipboard(location.key)"
-                    :style="{
-                      padding: '6px 12px',
-                      fontSize: '0.8em',
-                      fontWeight: '500',
-                      border: 'none',
-                      borderRadius: '3px',
-                      cursor: 'pointer',
-                      minWidth: '75px',
-                      backgroundColor: copiedKey === location.key ? '#4caf50' : '#1976d2',
-                      color: 'white',
-                      transition: 'background-color 0.3s'
-                    }"
-                  >
-                    {{ copiedKey === location.key ? '✓ Copied!' : 'Copy' }}
-                  </button>
-                </div>
-              </div>
+              <div style="margin-top: 15px; border-top: 2px solid #ddd; padding-top: 15px; display: flex; flex-direction: column; gap: 8px;">
+                <v-btn color="primary" size="small" @click="openmddialog(location.key)" block>
+                  <v-icon icon="mdi-notebook-edit" class="mr-2"></v-icon>
+                  zum Tagebuch
+                </v-btn>
 
-              <p>
-                <v-btn color="primary" class="ma-2" size="x-small" @click="openmddialog(location.key)">zum Tagebuch</v-btn>
-              </p>
+                <v-btn
+                  color="success"
+                  variant="elevated"
+                  size="small"
+                  @click.stop="loadStandstillSideTrips(location)"
+                  :loading="loadingSideTrips[location.key]"
+                  :disabled="loadingSideTrips[location.key]"
+                  block
+                >
+                  <v-icon icon="mdi-bicycle" class="mr-2"></v-icon>
+                  Load Side Trips
+                </v-btn>
+
+                <v-btn
+                  color="grey-darken-2"
+                  variant="outlined"
+                  size="small"
+                  @click.stop="copyToClipboard(location.key)"
+                  block
+                >
+                  <v-icon icon="mdi-content-copy" class="mr-2"></v-icon>
+                  {{ copiedKey === location.key ? '✓ Tag Copied!' : 'Copy WordPress Tag' }}
+                </v-btn>
+              </div>
             </div>
           </div>
         </InfoWindow>

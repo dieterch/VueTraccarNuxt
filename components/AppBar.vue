@@ -22,11 +22,15 @@ function setStopDate(params) {
 
 async function update_travel(item) {
     var index = travels.value.map(function(e) { return e.title; }).indexOf(item);
-    console.log(item, index, travels.value[index]);
+    console.log('🗺️  Travel selected:', item, 'index:', index);
+    console.log('   Travel data:', travels.value[index]);
     travel.value = travels.value[index]
     setCookie('travelindex', String(index), 30)
     startdate.value = new Date(travels.value[index].von);
     stopdate.value = new Date(travels.value[index].bis);
+    console.log('   Set startdate to:', startdate.value);
+    console.log('   Set stopdate to:', stopdate.value);
+    console.log('   Calling renderMap()...');
     renderMap()
 }
 

@@ -58,7 +58,8 @@ const settings = ref({
 
   // Side Trip Tracking
   sideTripEnabled: false,
-  sideTripDevices: []
+  sideTripDevices: [],
+  sideTripBufferHours: 6
 })
 
 // Password visibility toggles
@@ -1212,6 +1213,41 @@ watch(() => configdialog.value, (isOpen) => {
                         </template>
                       </v-list-item>
                     </v-list>
+
+                    <!-- Time Buffer Setting -->
+                    <v-card variant="outlined" class="mt-4">
+                      <v-card-title class="text-subtitle-2 bg-grey-darken-4">
+                        Time Buffer
+                      </v-card-title>
+                      <v-card-text>
+                        <v-slider
+                          v-model="settings.sideTripBufferHours"
+                          label="Extend period by (hours)"
+                          min="0"
+                          max="24"
+                          step="1"
+                          thumb-label="always"
+                          hint="Extend the standstill period before and after to capture complete side trips"
+                          persistent-hint
+                          class="mb-2"
+                        >
+                          <template v-slot:append>
+                            <v-text-field
+                              v-model="settings.sideTripBufferHours"
+                              type="number"
+                              style="width: 70px"
+                              density="compact"
+                              variant="outlined"
+                              hide-details
+                              suffix="h"
+                            ></v-text-field>
+                          </template>
+                        </v-slider>
+                        <div class="text-caption text-grey mt-2">
+                          Example: With 6 hours buffer, a standstill from 12:00-18:00 will fetch side trip data from 06:00-24:00
+                        </div>
+                      </v-card-text>
+                    </v-card>
 
                     <!-- Info Alert -->
                     <v-alert

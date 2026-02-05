@@ -8,6 +8,7 @@ export const useMapData = () => {
   // Map state
   const polygone = useState<Array<{ lat: number; lng: number }>>('polygone', () => [])
   const polylines = useState<DevicePolyline[]>('polylines', () => [])
+  const sideTripPolylines = useState<DevicePolyline[]>('sideTripPolylines', () => [])
   const center = useState<MapCenter>('center', () => ({ lat: 0, lng: 0 }))
   const zoom = useState<number>('zoom', () => 10)
   const distance = useState<number>('distance', () => 0)
@@ -32,39 +33,22 @@ export const useMapData = () => {
 
   // Loading state
   const isLoading = useState<boolean>('mapLoading', () => false)
+  const loadingMessage = useState<string>('mapLoadingMessage', () => 'Loading...')
 
   // Render map
   const renderMap = async () => {
     try {
       isLoading.value = true
+      loadingMessage.value = 'Loading map data...'
+
+      // Clear side trips when rendering new map
+      sideTripPolylines.value = []
 
       const payload = traccarPayload()
 
-      // Load side trip configuration from settings
-      let sideTripConfig = null
-      try {
-        const settingsResponse = await $fetch('/api/settings')
-        if (settingsResponse.success && settingsResponse.settings.sideTripEnabled) {
-          sideTripConfig = {
-            enabled: settingsResponse.settings.sideTripEnabled,
-            devices: settingsResponse.settings.sideTripDevices || []
-          }
-          console.log('Side trip config loaded:', sideTripConfig)
-        }
-      } catch (error) {
-        console.error('Error loading side trip settings:', error)
-        // Continue without side trips
-      }
-
-      // Add sideTripConfig to payload
-      const apiPayload = {
-        ...payload,
-        sideTripConfig
-      }
-
       const data = await $fetch('/api/plotmaps', {
         method: 'POST',
-        body: apiPayload
+        body: payload
       })
 
       polygone.value = data.polygone
@@ -83,6 +67,14 @@ export const useMapData = () => {
         markers: locations.value.length
       })
 
+      // Log polyline summary
+      if (polylines.value.length > 1) {
+        console.log('📊 Routes loaded:')
+        polylines.value.forEach(p => {
+          console.log(`  - ${p.deviceName}: ${p.path.length} points (${p.color})`)
+        })
+      }
+
       return data
     } catch (error) {
       console.error('Error rendering map:', error)
@@ -92,10 +84,47 @@ export const useMapData = () => {
     }
   }
 
+  // Fetch side trips for a specific standstill
+  const fetchSideTrips = async (from: string, to: string, deviceIds: number[]) => {
+    try {
+      console.log('🚴 Fetching side trips:', { from, to, deviceIds })
+
+      const response = await $fetch('/api/side-trips', {
+        method: 'POST',
+        body: { from, to, deviceIds }
+      })
+
+      if (response.success && response.polylines) {
+        // Add new side trip polylines to existing ones
+        sideTripPolylines.value = [...sideTripPolylines.value, ...response.polylines]
+        console.log(`✅ Added ${response.polylines.length} side trip polylines to map`)
+        console.log(`   Total side trip polylines now: ${sideTripPolylines.value.length}`)
+
+        // Log first few coordinates to verify location
+        if (response.polylines.length > 0 && response.polylines[0].path.length > 0) {
+          const firstPath = response.polylines[0].path
+          console.log(`   First coordinate: lat=${firstPath[0].lat}, lng=${firstPath[0].lng}`)
+          console.log(`   Last coordinate: lat=${firstPath[firstPath.length-1].lat}, lng=${firstPath[firstPath.length-1].lng}`)
+        }
+      }
+
+      return response
+    } catch (error) {
+      console.error('Error fetching side trips:', error)
+      throw error
+    }
+  }
+
+  // Clear side trip polylines
+  const clearSideTrips = () => {
+    sideTripPolylines.value = []
+  }
+
   return {
     // State
     polygone,
     polylines,
+    sideTripPolylines,
     center,
     zoom,
     distance,
@@ -114,8 +143,11 @@ export const useMapData = () => {
 
     // Loading
     isLoading,
+    loadingMessage,
 
     // Methods
-    renderMap
+    renderMap,
+    fetchSideTrips,
+    clearSideTrips
   }
 }

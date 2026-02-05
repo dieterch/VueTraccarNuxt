@@ -27,13 +27,19 @@ export const useTraccar = () => {
 
   // Payload builder
   const traccarPayload = () => {
-    return {
+    const payload = {
       name: travel.value?.title || 'filename',
       deviceId: device.value.id,
       from: tracdate(startdate.value),
       to: tracdate(stopdate.value),
       maxpoints: '2500'
     }
+    console.log('🔧 traccarPayload() called:')
+    console.log('   startdate.value:', startdate.value)
+    console.log('   stopdate.value:', stopdate.value)
+    console.log('   Formatted from:', payload.from)
+    console.log('   Formatted to:', payload.to)
+    return payload
   }
 
   // Get travels
@@ -63,6 +69,7 @@ export const useTraccar = () => {
 
       // Automatically render the map after loading travels
       const { renderMap } = useMapData()
+      console.log('🚀 Initial map render')
       await renderMap()
 
       return data

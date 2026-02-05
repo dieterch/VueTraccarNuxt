@@ -47,6 +47,7 @@ export default defineEventHandler(async (event) => {
     // Side Trip Tracking
     if (body.sideTripEnabled !== undefined) settings.sideTripEnabled = body.sideTripEnabled
     if (body.sideTripDevices !== undefined) settings.sideTripDevices = body.sideTripDevices
+    if (body.sideTripBufferHours !== undefined) settings.sideTripBufferHours = parseInt(body.sideTripBufferHours)
 
     const yamlPath = join(process.cwd(), 'data', 'settings.yml')
     const yamlContent = stringifyYaml(settings)
