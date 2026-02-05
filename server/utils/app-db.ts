@@ -43,6 +43,23 @@ function initializeAppDatabase(database: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_travel_address
     ON travel_patches(address_key)
   `)
+
+  // Create standstill_adjustments table
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS standstill_adjustments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      standstill_key TEXT NOT NULL UNIQUE,
+      start_adjustment_minutes INTEGER DEFAULT 0,
+      end_adjustment_minutes INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+
+  database.exec(`
+    CREATE INDEX IF NOT EXISTS idx_standstill_key
+    ON standstill_adjustments(standstill_key)
+  `)
 }
 
 export function getTravelPatches(): any[] {
@@ -103,6 +120,51 @@ export function saveTravelPatch(patch: {
 export function deleteTravelPatch(addressKey: string): void {
   const database = getAppDb()
   database.prepare('DELETE FROM travel_patches WHERE address_key = ?').run(addressKey)
+}
+
+export function getStandstillAdjustment(standstillKey: string): any | null {
+  const database = getAppDb()
+  const row = database.prepare(`
+    SELECT * FROM standstill_adjustments WHERE standstill_key = ?
+  `).get(standstillKey)
+  return row || null
+}
+
+export function saveStandstillAdjustment(adjustment: {
+  standstillKey: string
+  startAdjustmentMinutes: number
+  endAdjustmentMinutes: number
+}): void {
+  const database = getAppDb()
+
+  const existing = getStandstillAdjustment(adjustment.standstillKey)
+
+  if (existing) {
+    database.prepare(`
+      UPDATE standstill_adjustments
+      SET start_adjustment_minutes = ?, end_adjustment_minutes = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE standstill_key = ?
+    `).run(
+      adjustment.startAdjustmentMinutes,
+      adjustment.endAdjustmentMinutes,
+      adjustment.standstillKey
+    )
+  } else {
+    database.prepare(`
+      INSERT INTO standstill_adjustments
+      (standstill_key, start_adjustment_minutes, end_adjustment_minutes)
+      VALUES (?, ?, ?)
+    `).run(
+      adjustment.standstillKey,
+      adjustment.startAdjustmentMinutes,
+      adjustment.endAdjustmentMinutes
+    )
+  }
+}
+
+export function deleteStandstillAdjustment(standstillKey: string): void {
+  const database = getAppDb()
+  database.prepare('DELETE FROM standstill_adjustments WHERE standstill_key = ?').run(standstillKey)
 }
 
 export function closeAppDatabase() {

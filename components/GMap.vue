@@ -28,6 +28,9 @@ const { getDocument } = useDocuments();
 // Side trip loading state
 const loadingSideTrips = ref<Record<string, boolean>>({});
 
+// Standstill time adjustments (in minutes)
+const standstillAdjustments = ref<Record<string, { start: number, end: number }>>({});
+
 // Polyline visibility state
 const polylineVisibility = ref<Record<string, boolean>>({});
 
@@ -128,7 +131,8 @@ async function handleMarkerClick(location) {
   closeInfoWindows();
   location.infowindow = true;
 
-  // Posts parallel laden
+  // Load adjustments and posts in parallel
+  loadStandstillAdjustment(location.key);
   loadWordPressPosts(location.key);
 
   if (mapRef.value?.map) {
@@ -149,6 +153,74 @@ async function handleMarkerClick(location) {
 }
 
 // Load side trips for a specific standstill
+// Load standstill adjustment from database
+async function loadStandstillAdjustment(standstillKey: string) {
+  try {
+    const response = await $fetch('/api/standstill-adjustments', {
+      params: { key: standstillKey }
+    })
+    if (response.success && response.adjustment) {
+      standstillAdjustments.value[standstillKey] = {
+        start: response.adjustment.start_adjustment_minutes || 0,
+        end: response.adjustment.end_adjustment_minutes || 0
+      }
+    }
+  } catch (error) {
+    console.error('Error loading standstill adjustment:', error)
+    // Initialize with defaults
+    standstillAdjustments.value[standstillKey] = { start: 0, end: 0 }
+  }
+}
+
+// Adjust start or end time
+async function adjustStandstillTime(standstillKey: string, type: 'start' | 'end', delta: number) {
+  if (!standstillAdjustments.value[standstillKey]) {
+    standstillAdjustments.value[standstillKey] = { start: 0, end: 0 }
+  }
+
+  const adjustment = standstillAdjustments.value[standstillKey]
+  adjustment[type] += delta
+
+  // Save to database
+  try {
+    await $fetch('/api/standstill-adjustments', {
+      method: 'POST',
+      body: {
+        standstillKey,
+        startAdjustmentMinutes: adjustment.start,
+        endAdjustmentMinutes: adjustment.end
+      }
+    })
+  } catch (error) {
+    console.error('Error saving standstill adjustment:', error)
+  }
+}
+
+// Reset adjustments to zero
+async function resetStandstillAdjustments(standstillKey: string) {
+  standstillAdjustments.value[standstillKey] = { start: 0, end: 0 }
+
+  try {
+    await $fetch('/api/standstill-adjustments', {
+      method: 'POST',
+      body: {
+        standstillKey,
+        startAdjustmentMinutes: 0,
+        endAdjustmentMinutes: 0
+      }
+    })
+  } catch (error) {
+    console.error('Error resetting standstill adjustment:', error)
+  }
+}
+
+// Get adjusted time string
+function getAdjustedTime(dateString: string, adjustmentMinutes: number): string {
+  const date = new Date(dateString)
+  date.setMinutes(date.getMinutes() + adjustmentMinutes)
+  return date.toISOString().slice(0, 16).replace('T', ' ')
+}
+
 async function loadStandstillSideTrips(location) {
   try {
     loadingSideTrips.value[location.key] = true
@@ -169,23 +241,25 @@ async function loadStandstillSideTrips(location) {
       return
     }
 
-    // Apply time buffer
-    const bufferHours = settingsResponse.settings.sideTripBufferHours || 0
+    // Apply stored adjustments for this specific standstill
+    const adjustment = standstillAdjustments.value[location.key] || { start: 0, end: 0 }
     const fromDate = new Date(location.von)
     const toDate = new Date(location.bis)
 
-    fromDate.setHours(fromDate.getHours() - bufferHours)
-    toDate.setHours(toDate.getHours() + bufferHours)
+    // Apply minute-based adjustments (negative values go backward, positive forward)
+    fromDate.setMinutes(fromDate.getMinutes() + adjustment.start)
+    toDate.setMinutes(toDate.getMinutes() + adjustment.end)
 
-    const fromWithBuffer = fromDate.toISOString().slice(0, 16).replace('T', ' ')
-    const toWithBuffer = toDate.toISOString().slice(0, 16).replace('T', ' ')
+    const fromAdjusted = fromDate.toISOString().slice(0, 16).replace('T', ' ')
+    const toAdjusted = toDate.toISOString().slice(0, 16).replace('T', ' ')
 
     console.log(`🚴 Loading side trips for ${location.key}`)
     console.log(`   Original period: ${location.von} to ${location.bis}`)
-    console.log(`   With ${bufferHours}h buffer: ${fromWithBuffer} to ${toWithBuffer}`)
+    console.log(`   Adjustments: start ${adjustment.start}min, end ${adjustment.end}min`)
+    console.log(`   Adjusted period: ${fromAdjusted} to ${toAdjusted}`)
     console.log(`   Devices:`, deviceIds)
 
-    await fetchSideTrips(fromWithBuffer, toWithBuffer, deviceIds)
+    await fetchSideTrips(fromAdjusted, toAdjusted, deviceIds)
 
     console.log(`✅ Side trips loaded for ${location.key}`)
     console.log(`   sideTripPolylines.value now has ${sideTripPolylines.value.length} polylines`)
@@ -453,12 +527,70 @@ function copyToClipboard(key) {
                     <td>{{ location.lat.toFixed(2) }}, {{ location.lng.toFixed(2) }}</td>
                   </tr>
                   <tr>
-                    <th>von</th>
-                    <td>{{ location.von }}</td>
+                    <th style="vertical-align: top; padding-top: 8px;">von</th>
+                    <td>
+                      <div style="display: flex; align-items: center; gap: 4px;">
+                        <button
+                          @click="adjustStandstillTime(location.key, 'start', -60)"
+                          style="padding: 2px 6px; font-size: 12px; cursor: pointer; border: 1px solid #ccc; background: white; border-radius: 3px;"
+                          title="Start 1 Stunde früher"
+                        >-1h</button>
+                        <button
+                          @click="adjustStandstillTime(location.key, 'start', -15)"
+                          style="padding: 2px 6px; font-size: 12px; cursor: pointer; border: 1px solid #ccc; background: white; border-radius: 3px;"
+                          title="Start 15 Minuten früher"
+                        >-15m</button>
+                        <button
+                          @click="adjustStandstillTime(location.key, 'start', 15)"
+                          style="padding: 2px 6px; font-size: 12px; cursor: pointer; border: 1px solid #ccc; background: white; border-radius: 3px;"
+                          title="Start 15 Minuten später"
+                        >+15m</button>
+                        <button
+                          @click="adjustStandstillTime(location.key, 'start', 60)"
+                          style="padding: 2px 6px; font-size: 12px; cursor: pointer; border: 1px solid #ccc; background: white; border-radius: 3px;"
+                          title="Start 1 Stunde später"
+                        >+1h</button>
+                      </div>
+                      <div style="margin-top: 4px; font-size: 0.9em;">
+                        {{ getAdjustedTime(location.von, standstillAdjustments[location.key]?.start || 0) }}
+                        <span v-if="standstillAdjustments[location.key]?.start" style="color: #1976d2; font-weight: bold;">
+                          ({{ standstillAdjustments[location.key].start > 0 ? '+' : '' }}{{ standstillAdjustments[location.key].start }}min)
+                        </span>
+                      </div>
+                    </td>
                   </tr>
                   <tr>
-                    <th>bis</th>
-                    <td>{{ location.bis }}</td>
+                    <th style="vertical-align: top; padding-top: 8px;">bis</th>
+                    <td>
+                      <div style="display: flex; align-items: center; gap: 4px;">
+                        <button
+                          @click="adjustStandstillTime(location.key, 'end', -60)"
+                          style="padding: 2px 6px; font-size: 12px; cursor: pointer; border: 1px solid #ccc; background: white; border-radius: 3px;"
+                          title="Ende 1 Stunde früher"
+                        >-1h</button>
+                        <button
+                          @click="adjustStandstillTime(location.key, 'end', -15)"
+                          style="padding: 2px 6px; font-size: 12px; cursor: pointer; border: 1px solid #ccc; background: white; border-radius: 3px;"
+                          title="Ende 15 Minuten früher"
+                        >-15m</button>
+                        <button
+                          @click="adjustStandstillTime(location.key, 'end', 15)"
+                          style="padding: 2px 6px; font-size: 12px; cursor: pointer; border: 1px solid #ccc; background: white; border-radius: 3px;"
+                          title="Ende 15 Minuten später"
+                        >+15m</button>
+                        <button
+                          @click="adjustStandstillTime(location.key, 'end', 60)"
+                          style="padding: 2px 6px; font-size: 12px; cursor: pointer; border: 1px solid #ccc; background: white; border-radius: 3px;"
+                          title="Ende 1 Stunde später"
+                        >+1h</button>
+                      </div>
+                      <div style="margin-top: 4px; font-size: 0.9em;">
+                        {{ getAdjustedTime(location.bis, standstillAdjustments[location.key]?.end || 0) }}
+                        <span v-if="standstillAdjustments[location.key]?.end" style="color: #1976d2; font-weight: bold;">
+                          ({{ standstillAdjustments[location.key].end > 0 ? '+' : '' }}{{ standstillAdjustments[location.key].end }}min)
+                        </span>
+                      </div>
+                    </td>
                   </tr>
                   <tr>
                     <th>Dauer</th>
@@ -495,6 +627,24 @@ function copyToClipboard(key) {
                   zum Tagebuch
                 </v-btn>
 
+                <div v-if="standstillAdjustments[location.key]?.start || standstillAdjustments[location.key]?.end" style="background: #e3f2fd; padding: 8px 10px; border-radius: 4px; font-size: 0.85em; color: #1565c0; display: flex; justify-content: space-between; align-items: center;">
+                  <div>
+                    ⚙️ Zeitanpassungen aktiv:
+                    <span v-if="standstillAdjustments[location.key]?.start">
+                      Start {{ standstillAdjustments[location.key].start > 0 ? '+' : '' }}{{ standstillAdjustments[location.key].start }}min
+                    </span>
+                    <span v-if="standstillAdjustments[location.key]?.start && standstillAdjustments[location.key]?.end">, </span>
+                    <span v-if="standstillAdjustments[location.key]?.end">
+                      Ende {{ standstillAdjustments[location.key].end > 0 ? '+' : '' }}{{ standstillAdjustments[location.key].end }}min
+                    </span>
+                  </div>
+                  <button
+                    @click="resetStandstillAdjustments(location.key)"
+                    style="padding: 2px 8px; font-size: 11px; cursor: pointer; border: 1px solid #1976d2; background: white; border-radius: 3px; color: #1976d2;"
+                    title="Anpassungen zurücksetzen"
+                  >↻ Reset</button>
+                </div>
+
                 <v-btn
                   color="success"
                   variant="elevated"
@@ -505,7 +655,7 @@ function copyToClipboard(key) {
                   block
                 >
                   <v-icon icon="mdi-bicycle" class="mr-2"></v-icon>
-                  Load Side Trips
+                  {{ (standstillAdjustments[location.key]?.start || standstillAdjustments[location.key]?.end) ? 'Reload Side Trips (Adjusted)' : 'Load Side Trips' }}
                 </v-btn>
 
                 <v-btn

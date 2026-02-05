@@ -104,6 +104,14 @@ export interface SideTripDevice {
   enabled: boolean
 }
 
+export interface StandstillAdjustment {
+  standstill_key: string
+  start_adjustment_minutes: number
+  end_adjustment_minutes: number
+  created_at?: string
+  updated_at?: string
+}
+
 export interface DevicePolyline {
   deviceId: number
   deviceName: string
