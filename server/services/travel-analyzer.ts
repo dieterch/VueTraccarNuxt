@@ -152,9 +152,42 @@ export class TravelAnalyzer {
   }
 
   /**
-   * Load travel patches from travels.yml
+   * Load travel patches from database
    */
   async loadTravelPatches(): Promise<void> {
+    try {
+      // Load from database
+      const { getTravelPatches } = await import('../utils/cache')
+      const patches = getTravelPatches()
+
+      const cleaned: TravelsYaml = {}
+      for (const patch of patches) {
+        const entry: any = {}
+
+        if (patch.title) entry.title = patch.title
+        if (patch.from_date) entry.von = patch.from_date
+        if (patch.to_date) entry.bis = patch.to_date
+        if (patch.exclude) entry.exclude = true
+
+        if (Object.keys(entry).length > 0) {
+          cleaned[patch.address_key] = entry
+        }
+      }
+
+      this.travelPatches = cleaned
+      console.log(`Loaded ${patches.length} travel patches from database`)
+    } catch (error: any) {
+      console.error('Error loading travel patches from database:', error)
+      // Fallback to YAML if database fails
+      console.log('Falling back to travels.yml...')
+      await this.loadTravelPatchesFromYaml()
+    }
+  }
+
+  /**
+   * Load travel patches from travels.yml (fallback)
+   */
+  private async loadTravelPatchesFromYaml(): Promise<void> {
     try {
       const yamlPath = join(process.cwd(), 'data', 'travels.yml')
       const content = await readFile(yamlPath, 'utf-8')

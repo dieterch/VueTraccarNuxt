@@ -69,6 +69,20 @@ const showPassword = ref({
 // Expansion panel state
 const expandedPanels = ref([0])
 
+// Travel Patches Management
+const travelPatches = ref([])
+const loadingPatches = ref(false)
+const editingPatch = ref(null)
+const newPatch = ref({
+  addressKey: '',
+  title: '',
+  fromDate: '',
+  toDate: '',
+  exclude: false
+})
+const showAddPatchForm = ref(false)
+const migratingYaml = ref(false)
+
 // Verify password
 async function verifyPassword() {
   if (!password.value) {
@@ -124,6 +138,9 @@ async function loadSettings() {
     if (geofencesResponse.success) {
       geofences.value = geofencesResponse.geofences
     }
+
+    // Load travel patches
+    await loadTravelPatches()
   } catch (error) {
     console.error('Error loading settings:', error)
     errorMessage.value = 'Failed to load settings. Please try again.'
@@ -168,6 +185,83 @@ function onGeofenceSelected(id) {
   const geofence = geofences.value.find(g => g.id === id)
   if (geofence) {
     settings.value.homeGeofenceName = geofence.name
+  }
+}
+
+// Load travel patches
+async function loadTravelPatches() {
+  loadingPatches.value = true
+  try {
+    const response = await $fetch('/api/travel-patches')
+    if (response.success) {
+      travelPatches.value = response.patches.map(p => ({
+        addressKey: p.address_key,
+        title: p.title || '',
+        fromDate: p.from_date || '',
+        toDate: p.to_date || '',
+        exclude: Boolean(p.exclude),
+        createdAt: p.created_at,
+        updatedAt: p.updated_at
+      }))
+    }
+  } catch (error) {
+    console.error('Error loading travel patches:', error)
+    errorMessage.value = 'Failed to load travel patches'
+  } finally {
+    loadingPatches.value = false
+  }
+}
+
+// Save travel patch
+async function saveTravelPatch(patch) {
+  try {
+    await $fetch('/api/travel-patches', {
+      method: 'POST',
+      body: patch
+    })
+    await loadTravelPatches()
+    successMessage.value = 'Travel patch saved successfully'
+    editingPatch.value = null
+    showAddPatchForm.value = false
+    newPatch.value = { addressKey: '', title: '', fromDate: '', toDate: '', exclude: false }
+  } catch (error) {
+    console.error('Error saving travel patch:', error)
+    errorMessage.value = 'Failed to save travel patch'
+  }
+}
+
+// Delete travel patch
+async function deleteTravelPatch(addressKey) {
+  if (!confirm(`Delete travel patch for "${addressKey}"?`)) return
+
+  try {
+    await $fetch(`/api/travel-patches/${encodeURIComponent(addressKey)}`, {
+      method: 'DELETE'
+    })
+    await loadTravelPatches()
+    successMessage.value = 'Travel patch deleted successfully'
+  } catch (error) {
+    console.error('Error deleting travel patch:', error)
+    errorMessage.value = 'Failed to delete travel patch'
+  }
+}
+
+// Migrate from YAML
+async function migrateFromYaml() {
+  if (!confirm('Migrate travel patches from travels.yml to database? Existing patches will be updated.')) return
+
+  migratingYaml.value = true
+  try {
+    const response = await $fetch('/api/travel-patches/migrate', {
+      method: 'POST'
+    })
+    successMessage.value = response.message
+    await loadTravelPatches()
+  } catch (error) {
+    console.error('Error migrating from YAML:', error)
+    errorMessage.value = 'Failed to migrate from YAML'
+  } finally {
+    migratingYaml.value = false
   }
 }
 
@@ -629,6 +723,171 @@ watch(() => configdialog.value, (isOpen) => {
                     hint="Starting date for route analysis (ISO format)"
                     persistent-hint
                   ></v-text-field>
+                </v-expansion-panel-text>
+              </v-expansion-panel>
+
+              <!-- 7. Travel Patches Management -->
+              <v-expansion-panel value="6">
+                <v-expansion-panel-title>
+                  <v-icon icon="mdi-map-marker-path" class="mr-2"></v-icon>
+                  Travel Patches Management
+                </v-expansion-panel-title>
+                <v-expansion-panel-text>
+                  <div class="text-body-2 text-grey mb-4">
+                    Manage custom titles and date overrides for detected travels. Each patch is matched by the travel's farthest destination address.
+                  </div>
+
+                  <!-- Migration Button -->
+                  <v-alert
+                    type="info"
+                    variant="tonal"
+                    density="compact"
+                    class="mb-4"
+                  >
+                    <div class="d-flex align-center justify-space-between">
+                      <div>
+                        <strong>First time setup?</strong> Migrate existing travels.yml to database
+                      </div>
+                      <v-btn
+                        size="small"
+                        variant="elevated"
+                        color="primary"
+                        @click="migrateFromYaml"
+                        :loading="migratingYaml"
+                      >
+                        <v-icon icon="mdi-database-import" class="mr-1"></v-icon>
+                        Migrate from YAML
+                      </v-btn>
+                    </div>
+                  </v-alert>
+
+                  <!-- Add New Patch Button -->
+                  <v-btn
+                    variant="outlined"
+                    color="primary"
+                    class="mb-4"
+                    @click="showAddPatchForm = !showAddPatchForm"
+                  >
+                    <v-icon icon="mdi-plus" class="mr-2"></v-icon>
+                    Add New Travel Patch
+                  </v-btn>
+
+                  <!-- Add Patch Form -->
+                  <v-card v-if="showAddPatchForm" variant="outlined" class="mb-4">
+                    <v-card-text>
+                      <v-text-field
+                        v-model="newPatch.addressKey"
+                        label="Address Key"
+                        variant="outlined"
+                        density="comfortable"
+                        hint="The destination address to match (e.g., 'Krk, Croatia')"
+                        persistent-hint
+                        class="mb-3"
+                      ></v-text-field>
+
+                      <v-text-field
+                        v-model="newPatch.title"
+                        label="Custom Title"
+                        variant="outlined"
+                        density="comfortable"
+                        hint="Custom title for this travel"
+                        persistent-hint
+                        class="mb-3"
+                      ></v-text-field>
+
+                      <v-text-field
+                        v-model="newPatch.fromDate"
+                        label="Override From Date"
+                        variant="outlined"
+                        density="comfortable"
+                        type="date"
+                        hint="Optional: Override travel start date"
+                        persistent-hint
+                        class="mb-3"
+                      ></v-text-field>
+
+                      <v-text-field
+                        v-model="newPatch.toDate"
+                        label="Override To Date"
+                        variant="outlined"
+                        density="comfortable"
+                        type="date"
+                        hint="Optional: Override travel end date"
+                        persistent-hint
+                        class="mb-3"
+                      ></v-text-field>
+
+                      <v-checkbox
+                        v-model="newPatch.exclude"
+                        label="Exclude this travel"
+                        color="error"
+                        hint="Check to exclude this destination from travel detection"
+                        persistent-hint
+                      ></v-checkbox>
+                    </v-card-text>
+                    <v-card-actions>
+                      <v-spacer></v-spacer>
+                      <v-btn variant="text" @click="showAddPatchForm = false">Cancel</v-btn>
+                      <v-btn
+                        color="primary"
+                        variant="elevated"
+                        @click="saveTravelPatch(newPatch)"
+                        :disabled="!newPatch.addressKey"
+                      >
+                        <v-icon icon="mdi-content-save" class="mr-2"></v-icon>
+                        Save
+                      </v-btn>
+                    </v-card-actions>
+                  </v-card>
+
+                  <!-- Patches List -->
+                  <div v-if="loadingPatches" class="text-center py-4">
+                    <v-progress-circular indeterminate color="primary"></v-progress-circular>
+                    <div class="mt-2">Loading travel patches...</div>
+                  </div>
+
+                  <div v-else-if="travelPatches.length === 0" class="text-center py-4 text-grey">
+                    No travel patches configured yet. Add one above or migrate from YAML.
+                  </div>
+
+                  <v-list v-else density="compact">
+                    <v-list-item
+                      v-for="patch in travelPatches"
+                      :key="patch.addressKey"
+                      class="mb-2"
+                      border
+                    >
+                      <template v-slot:prepend>
+                        <v-icon
+                          :icon="patch.exclude ? 'mdi-close-circle' : 'mdi-map-marker'"
+                          :color="patch.exclude ? 'error' : 'primary'"
+                        ></v-icon>
+                      </template>
+
+                      <v-list-item-title class="font-weight-medium">
+                        {{ patch.addressKey }}
+                      </v-list-item-title>
+
+                      <v-list-item-subtitle v-if="patch.title">
+                        {{ patch.title }}
+                      </v-list-item-subtitle>
+
+                      <v-list-item-subtitle v-if="patch.fromDate || patch.toDate">
+                        <v-icon icon="mdi-calendar-range" size="small" class="mr-1"></v-icon>
+                        {{ patch.fromDate || '—' }} to {{ patch.toDate || '—' }}
+                      </v-list-item-subtitle>
+
+                      <template v-slot:append>
+                        <v-btn
+                          icon="mdi-delete"
+                          variant="text"
+                          size="small"
+                          color="error"
+                          @click="deleteTravelPatch(patch.addressKey)"
+                        ></v-btn>
+                      </template>
+                    </v-list-item>
+                  </v-list>
                 </v-expansion-panel-text>
               </v-expansion-panel>
             </v-expansion-panels>
