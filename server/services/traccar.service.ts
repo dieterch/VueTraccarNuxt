@@ -191,6 +191,10 @@ export class TraccarService {
 
     return getStandstillPeriods(deviceId)
   }
+
+  async getGeofences(): Promise<any[]> {
+    return await this.client.getGeofences()
+  }
 }
 
 export function createTraccarService(): TraccarService {

@@ -8,6 +8,7 @@ import { calculateDistance, filterStandstillPeriods } from './route-analyzer'
 export class TravelAnalyzer {
   private config = useRuntimeConfig()
   private travelPatches: TravelsYaml = {}
+  private homeGeofenceId: number = 1
 
   /**
    * Strip Plus Code from address (e.g., "2HCR+WM Krk, Croatia" → "Krk, Croatia")
@@ -121,6 +122,33 @@ export class TravelAnalyzer {
     withDistances.sort((a, b) => b.distance - a.distance)
 
     return withDistances[0]
+  }
+
+  /**
+   * Load geofence settings from settings.yml
+   */
+  private async loadGeofenceSettings(): Promise<void> {
+    try {
+      const yamlPath = join(process.cwd(), 'data', 'settings.yml')
+      const content = await readFile(yamlPath, 'utf-8')
+      const data = parseYaml(content) || {}
+
+      if (data.homeGeofenceId !== undefined) {
+        this.homeGeofenceId = data.homeGeofenceId
+        console.log(`Loaded home geofence ID from settings.yml: ${this.homeGeofenceId}`)
+      } else {
+        this.homeGeofenceId = this.config.homeGeofenceId as number
+        console.log(`Using default home geofence ID from .env: ${this.homeGeofenceId}`)
+      }
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        this.homeGeofenceId = this.config.homeGeofenceId as number
+        console.log(`settings.yml not found, using default home geofence ID: ${this.homeGeofenceId}`)
+      } else {
+        console.error('Error loading geofence settings:', error)
+        this.homeGeofenceId = this.config.homeGeofenceId as number
+      }
+    }
   }
 
   /**
@@ -257,12 +285,13 @@ export class TravelAnalyzer {
     standstillPeriods: StandstillPeriod[],
     deviceId: number
   ): Promise<Travel[]> {
+    await this.loadGeofenceSettings()
     await this.loadTravelPatches()
 
-    // Filter for geofence #1 (home base) enter/exit events
+    // Filter for home geofence enter/exit events
     const geofenceEvents = events.filter(
       e =>
-        e.geofenceId === 1 &&
+        e.geofenceId === this.homeGeofenceId &&
         (e.type === 'geofenceEnter' || e.type === 'geofenceExit')
     )
 

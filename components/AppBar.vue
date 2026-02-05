@@ -5,7 +5,7 @@ import { useMapData } from '~/composables/useMapData';
 import { setCookie, deleteCookie } from '~/utils/crypto';
 
 const { startdate, stopdate, travel, travels, getTravels, downloadKml, delPrefetch } = useTraccar();
-const { distance, renderMap, settingsdialog, aboutdialog } = useMapData();
+const { distance, renderMap, settingsdialog, configdialog, aboutdialog } = useMapData();
 
 function openSettingsDialog() {
     settingsdialog.value = true;
@@ -28,9 +28,12 @@ async function update_travel(item) {
     renderMap()
 }
 
-const menuitems = ref(['About', 'Debug', 'Export als KML', 'Log Out', 'Prefetch again']) //, 'Export als GPX', 'Export als CSV', 'Export als PDF'])
+const menuitems = ref(['Settings', 'About', 'Debug', 'Export als KML', 'Log Out', 'Prefetch again']) //, 'Export als GPX', 'Export als CSV', 'Export als PDF'])
 async function domenu(item) {
     switch (item) {
+        case 'Settings':
+            configdialog.value = true
+            break;
         case 'About':
             aboutdialog.value = true
             break;

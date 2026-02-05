@@ -44,6 +44,7 @@ const authenticated = ref(true)
       <AppBar />
       <v-main>
         <DebugDialog />
+        <SettingsDialog />
         <AboutDialog />
         <GMap v-if="togglemap" :key="polygone" />
         <pre v-if="toggletravels">

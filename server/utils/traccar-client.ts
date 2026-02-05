@@ -90,6 +90,19 @@ export class TraccarClient {
       throw error
     }
   }
+
+  async getGeofences(): Promise<any[]> {
+    try {
+      const response = await $fetch<any[]>(`${this.baseUrl}/api/geofences`, {
+        headers: this.getHeaders(),
+        timeout: 100000
+      })
+      return response
+    } catch (error) {
+      console.error('Traccar API error (getGeofences):', error)
+      throw error
+    }
+  }
 }
 
 export function createTraccarClient(): TraccarClient {

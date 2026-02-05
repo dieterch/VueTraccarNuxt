@@ -3,17 +3,17 @@ import { TraccarService } from '~/server/services/traccar.service'
 export default defineEventHandler(async (event) => {
   try {
     const traccar = new TraccarService()
-    const devices = await traccar.getDevices()
+    const geofences = await traccar.getGeofences()
 
     return {
       success: true,
-      devices
+      geofences
     }
   } catch (error: any) {
-    console.error('Error fetching devices:', error)
+    console.error('Error fetching geofences:', error)
     throw createError({
       statusCode: 500,
-      message: error.message || 'Failed to fetch devices'
+      message: error.message || 'Failed to fetch geofences'
     })
   }
 })

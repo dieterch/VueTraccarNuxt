@@ -1,4 +1,9 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import { loadSettings } from './utils/load-settings'
+
+// Load settings.yml to override .env values
+loadSettings()
+
 export default defineNuxtConfig({
   compatibilityDate: '2024-04-03',
   devtools: { enabled: true },
@@ -23,6 +28,7 @@ export default defineNuxtConfig({
     traccarUser: process.env.TRACCAR_USER,
     traccarPassword: process.env.TRACCAR_PASSWORD,
     traccarDeviceId: process.env.TRACCAR_DEVICE_ID,
+    traccarDeviceName: process.env.TRACCAR_DEVICE_NAME || 'Device',
     wordpressUrl: process.env.WORDPRESS_URL,
     wordpressUser: process.env.WORDPRESS_USER,
     wordpressAppPassword: process.env.WORDPRESS_APP_PASSWORD,
@@ -31,6 +37,8 @@ export default defineNuxtConfig({
     homeMode: process.env.HOME_MODE === 'true',
     homeLatitude: process.env.HOME_LATITUDE,
     homeLongitude: process.env.HOME_LONGITUDE,
+    homeGeofenceId: parseInt(process.env.HOME_GEOFENCE_ID || '1'),
+    homeGeofenceName: process.env.HOME_GEOFENCE_NAME || 'Home',
     eventMinGap: parseInt(process.env.EVENT_MIN_GAP || '60'),
     maxDays: parseInt(process.env.MAX_DAYS || '170'),
     minDays: parseInt(process.env.MIN_DAYS || '2'),
