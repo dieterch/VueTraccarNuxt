@@ -1,4 +1,4 @@
-import { saveTravelPatch } from '~/server/utils/cache'
+import { saveTravelPatch } from '~/server/utils/app-db'
 
 export default defineEventHandler(async (event) => {
   try {

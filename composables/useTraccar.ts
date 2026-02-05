@@ -137,6 +137,18 @@ export const useTraccar = () => {
     }
   }
 
+  // Prefetch route data
+  const prefetchRoute = async () => {
+    try {
+      const response = await $fetch('/api/prefetchroute')
+      console.log('Route prefetched:', response)
+      return response
+    } catch (error) {
+      console.error('Error prefetching route:', error)
+      throw error
+    }
+  }
+
   // Delete prefetch cache
   const delPrefetch = async () => {
     try {
@@ -145,6 +157,29 @@ export const useTraccar = () => {
       return response
     } catch (error) {
       console.error('Error deleting prefetch:', error)
+      throw error
+    }
+  }
+
+  // Delete and rebuild cache
+  const rebuildCache = async () => {
+    try {
+      await delPrefetch()
+      const response = await prefetchRoute()
+      return response
+    } catch (error) {
+      console.error('Error rebuilding cache:', error)
+      throw error
+    }
+  }
+
+  // Check cache status
+  const checkCacheStatus = async () => {
+    try {
+      const data = await $fetch('/api/cache-status')
+      return data
+    } catch (error) {
+      console.error('Error checking cache status:', error)
       throw error
     }
   }
@@ -176,7 +211,10 @@ export const useTraccar = () => {
     getRoute,
     getEvents,
     downloadKml,
+    prefetchRoute,
     delPrefetch,
+    rebuildCache,
+    checkCacheStatus,
     getDevices,
     download
   }

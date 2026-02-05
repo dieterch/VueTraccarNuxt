@@ -1,7 +1,7 @@
 import { readFile } from 'fs/promises'
 import { parse as parseYaml } from 'yaml'
 import { join } from 'path'
-import { saveTravelPatch } from '~/server/utils/cache'
+import { saveTravelPatch } from '~/server/utils/app-db'
 
 export default defineEventHandler(async () => {
   try {

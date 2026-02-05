@@ -1,4 +1,4 @@
-import { deleteTravelPatch } from '~/server/utils/cache'
+import { deleteTravelPatch } from '~/server/utils/app-db'
 
 export default defineEventHandler(async (event) => {
   try {

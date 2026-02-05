@@ -4,8 +4,10 @@ import { useTraccar } from '~/composables/useTraccar';
 import { useMapData } from '~/composables/useMapData';
 import { setCookie, deleteCookie } from '~/utils/crypto';
 
-const { startdate, stopdate, travel, travels, getTravels, downloadKml, delPrefetch } = useTraccar();
+const { startdate, stopdate, travel, travels, getTravels, downloadKml, rebuildCache, checkCacheStatus, prefetchRoute } = useTraccar();
 const { distance, renderMap, settingsdialog, configdialog, aboutdialog } = useMapData();
+
+const prefetching = ref(false);
 
 function openSettingsDialog() {
     settingsdialog.value = true;
@@ -47,7 +49,7 @@ async function domenu(item) {
             deleteCookie('authenticated')
             break;
         case 'Prefetch again':
-            delPrefetch()
+            await handlePrefetchAgain()
             break;
         case 'Export als GPX':
             //downloadgpx()
@@ -61,13 +63,73 @@ async function domenu(item) {
     }
 }
 
+// Handle prefetch again
+async function handlePrefetchAgain() {
+    prefetching.value = true
+    try {
+        await rebuildCache()
+        await getTravels()
+    } catch (error) {
+        console.error('Error rebuilding cache:', error)
+    } finally {
+        prefetching.value = false
+    }
+}
+
 // Load travels on component mount
-onMounted(() => {
-    getTravels()
+onMounted(async () => {
+    try {
+        // Check if cache exists
+        const cacheStatus = await checkCacheStatus()
+
+        if (!cacheStatus.hasCache) {
+            // No cache - prefetch first
+            console.log('No cache found, prefetching route data...')
+            prefetching.value = true
+            await prefetchRoute()
+            prefetching.value = false
+        }
+
+        // Load travels
+        await getTravels()
+    } catch (error) {
+        console.error('Error during initialization:', error)
+        prefetching.value = false
+    }
 })
 </script>
 
 <template>
+    <!-- Prefetch Loading Overlay -->
+    <v-overlay
+        v-model="prefetching"
+        class="align-center justify-center"
+        persistent
+        :scrim="true"
+    >
+        <v-card
+            class="pa-8 text-center"
+            min-width="400"
+        >
+            <v-card-text>
+                <v-progress-circular
+                    indeterminate
+                    color="primary"
+                    size="64"
+                    width="6"
+                    class="mb-4"
+                ></v-progress-circular>
+                <div class="text-h6 mb-2">Rebuilding Route Cache</div>
+                <div class="text-body-2 text-grey">
+                    Fetching route data from Traccar API...
+                </div>
+                <div class="text-caption text-grey mt-2">
+                    This may take a few moments
+                </div>
+            </v-card-text>
+        </v-card>
+    </v-overlay>
+
     <v-app-bar
         name="menu-bar"
         density="compact"

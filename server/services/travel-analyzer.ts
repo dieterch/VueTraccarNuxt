@@ -156,8 +156,8 @@ export class TravelAnalyzer {
    */
   async loadTravelPatches(): Promise<void> {
     try {
-      // Load from database
-      const { getTravelPatches } = await import('../utils/cache')
+      // Load from app database (persistent data)
+      const { getTravelPatches } = await import('../utils/app-db')
       const patches = getTravelPatches()
 
       const cleaned: TravelsYaml = {}
