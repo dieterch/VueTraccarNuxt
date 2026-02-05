@@ -1,8 +1,50 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
-import { loadSettings } from './utils/load-settings'
+import { readFileSync, existsSync } from 'fs'
+import { parse as parseYaml } from 'yaml'
+import { join } from 'path'
 
 // Load settings.yml to override .env values
-loadSettings()
+try {
+  const settingsPath = join(process.cwd(), 'data', 'settings.yml')
+  if (existsSync(settingsPath)) {
+    const content = readFileSync(settingsPath, 'utf-8')
+    const settings = parseYaml(content) || {}
+
+    // Map settings to env vars
+    const envMapping: Record<string, string> = {
+      traccarUrl: 'TRACCAR_URL',
+      traccarUser: 'TRACCAR_USER',
+      traccarPassword: 'TRACCAR_PASSWORD',
+      traccarDeviceId: 'TRACCAR_DEVICE_ID',
+      traccarDeviceName: 'TRACCAR_DEVICE_NAME',
+      googleMapsApiKey: 'NUXT_PUBLIC_GOOGLE_MAPS_API_KEY',
+      wordpressUrl: 'WORDPRESS_URL',
+      wordpressUser: 'WORDPRESS_USER',
+      wordpressAppPassword: 'WORDPRESS_APP_PASSWORD',
+      wordpressCacheDuration: 'WORDPRESS_CACHE_DURATION',
+      vueTraccarPassword: 'VUE_TRACCAR_PASSWORD',
+      homeMode: 'HOME_MODE',
+      homeLatitude: 'HOME_LATITUDE',
+      homeLongitude: 'HOME_LONGITUDE',
+      homeGeofenceId: 'HOME_GEOFENCE_ID',
+      homeGeofenceName: 'HOME_GEOFENCE_NAME',
+      eventMinGap: 'EVENT_MIN_GAP',
+      maxDays: 'MAX_DAYS',
+      minDays: 'MIN_DAYS',
+      standPeriod: 'STAND_PERIOD',
+      startDate: 'START_DATE'
+    }
+
+    for (const [settingKey, envKey] of Object.entries(envMapping)) {
+      if (settings[settingKey] !== undefined && settings[settingKey] !== null) {
+        process.env[envKey] = String(settings[settingKey])
+      }
+    }
+    console.log('✓ Loaded settings from settings.yml')
+  }
+} catch (error) {
+  console.error('Error loading settings.yml:', error)
+}
 
 export default defineNuxtConfig({
   compatibilityDate: '2024-04-03',
