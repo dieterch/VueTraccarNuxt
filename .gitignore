@@ -23,9 +23,15 @@ logs
 .env.*
 !.env.example
 
-# SQLite cache
+# SQLite cache and data files
 data/cache/*.db
 data/cache/*.db-shm
 data/cache/*.db-wal
 
+# Sensitive configuration files (contain secrets)
 data/settings.yml
+data/travels.yml
+
+# Backup files
+data/*.bak
+data/*.backup
