@@ -54,7 +54,11 @@ const settings = ref({
   maxDays: 170,
   minDays: 2,
   standPeriod: 12,
-  startDate: ''
+  startDate: '',
+
+  // Side Trip Tracking
+  sideTripEnabled: false,
+  sideTripDevices: []
 })
 
 // Password visibility toggles
@@ -83,6 +87,20 @@ const newPatch = ref({
 })
 const showAddPatchForm = ref(false)
 const migratingYaml = ref(false)
+
+// Side Trip Device Management
+const editingSideTripDevice = ref(null)
+const showAddDeviceForm = ref(false)
+const newSideTripDevice = ref({
+  deviceId: null,
+  deviceName: '',
+  color: '#0088FF',
+  lineWeight: 2,
+  enabled: true
+})
+
+// Default color palette
+const defaultColors = ['#0088FF', '#00CC44', '#9933FF', '#FF6600', '#FFD700', '#FF1493']
 
 // Verify password
 async function verifyPassword() {
@@ -285,6 +303,95 @@ async function migrateFromYaml() {
     errorMessage.value = 'Failed to migrate from YAML'
   } finally {
     migratingYaml.value = false
+  }
+}
+
+// Add side trip device
+function addSideTripDevice() {
+  if (!newSideTripDevice.value.deviceId || !newSideTripDevice.value.deviceName) {
+    errorMessage.value = 'Please select a device'
+    return
+  }
+
+  // Check if device already exists
+  const exists = settings.value.sideTripDevices.some(
+    d => d.deviceId === newSideTripDevice.value.deviceId
+  )
+
+  if (exists) {
+    errorMessage.value = 'This device is already added'
+    return
+  }
+
+  // Check if it's the main device
+  if (newSideTripDevice.value.deviceId === settings.value.traccarDeviceId) {
+    errorMessage.value = 'Cannot add the main device as a side trip device'
+    return
+  }
+
+  settings.value.sideTripDevices.push({ ...newSideTripDevice.value })
+
+  // Reset form
+  newSideTripDevice.value = {
+    deviceId: null,
+    deviceName: '',
+    color: defaultColors[settings.value.sideTripDevices.length % defaultColors.length],
+    lineWeight: 2,
+    enabled: true
+  }
+  showAddDeviceForm.value = false
+  successMessage.value = 'Device added successfully'
+}
+
+// Edit side trip device
+function editSideTripDevice(device) {
+  newSideTripDevice.value = { ...device }
+  editingSideTripDevice.value = device.deviceId
+  showAddDeviceForm.value = true
+}
+
+// Update side trip device
+function updateSideTripDevice() {
+  const index = settings.value.sideTripDevices.findIndex(
+    d => d.deviceId === editingSideTripDevice.value
+  )
+
+  if (index !== -1) {
+    settings.value.sideTripDevices[index] = { ...newSideTripDevice.value }
+    successMessage.value = 'Device updated successfully'
+  }
+
+  cancelEditSideTripDevice()
+}
+
+// Cancel editing side trip device
+function cancelEditSideTripDevice() {
+  editingSideTripDevice.value = null
+  showAddDeviceForm.value = false
+  newSideTripDevice.value = {
+    deviceId: null,
+    deviceName: '',
+    color: defaultColors[settings.value.sideTripDevices.length % defaultColors.length],
+    lineWeight: 2,
+    enabled: true
+  }
+}
+
+// Delete side trip device
+function deleteSideTripDevice(deviceId) {
+  if (!confirm('Delete this side trip device?')) return
+
+  settings.value.sideTripDevices = settings.value.sideTripDevices.filter(
+    d => d.deviceId !== deviceId
+  )
+  successMessage.value = 'Device deleted successfully'
+}
+
+// On side trip device selected
+function onSideTripDeviceSelected(id) {
+  const device = devices.value.find(d => d.id === id)
+  if (device) {
+    newSideTripDevice.value.deviceName = device.name
   }
 }
 
@@ -936,6 +1043,188 @@ watch(() => configdialog.value, (isOpen) => {
                       </template>
                     </v-list-item>
                   </v-list>
+                </v-expansion-panel-text>
+              </v-expansion-panel>
+
+              <!-- 8. Side Trip Tracking -->
+              <v-expansion-panel value="7">
+                <v-expansion-panel-title>
+                  <v-icon icon="mdi-map-marker-multiple" class="mr-2"></v-icon>
+                  Side Trip Tracking
+                </v-expansion-panel-title>
+                <v-expansion-panel-text>
+                  <div class="text-body-2 text-grey mb-4">
+                    Track and visualize side trips (bicycle tours, town visits) from secondary devices during camper standstill periods. Routes display only when the main vehicle is parked for extended periods.
+                  </div>
+
+                  <!-- Enable/Disable Side Trip Tracking -->
+                  <v-switch
+                    v-model="settings.sideTripEnabled"
+                    label="Enable Side Trip Tracking"
+                    color="primary"
+                    hint="Show routes from secondary devices during standstills"
+                    persistent-hint
+                    class="mb-4"
+                  ></v-switch>
+
+                  <div v-if="settings.sideTripEnabled">
+                    <!-- Add Device Button -->
+                    <v-btn
+                      variant="outlined"
+                      color="primary"
+                      class="mb-4"
+                      @click="showAddDeviceForm = !showAddDeviceForm"
+                      v-if="!showAddDeviceForm"
+                    >
+                      <v-icon icon="mdi-plus" class="mr-2"></v-icon>
+                      Add Secondary Device
+                    </v-btn>
+
+                    <!-- Add/Edit Device Form -->
+                    <v-card v-if="showAddDeviceForm" variant="outlined" class="mb-4">
+                      <v-card-title class="bg-grey-darken-3">
+                        <v-icon :icon="editingSideTripDevice ? 'mdi-pencil' : 'mdi-plus'" class="mr-2"></v-icon>
+                        {{ editingSideTripDevice ? 'Edit Secondary Device' : 'Add Secondary Device' }}
+                      </v-card-title>
+                      <v-card-text>
+                        <v-select
+                          v-model="newSideTripDevice.deviceId"
+                          :items="devices.filter(d => d.id !== settings.traccarDeviceId)"
+                          item-title="name"
+                          item-value="id"
+                          label="Select Device"
+                          variant="outlined"
+                          density="comfortable"
+                          prepend-inner-icon="mdi-cellphone-link"
+                          @update:model-value="onSideTripDeviceSelected"
+                          hint="Select a secondary device to track"
+                          persistent-hint
+                          class="mb-3"
+                          :readonly="!!editingSideTripDevice"
+                        >
+                          <template v-slot:item="{ props, item }">
+                            <v-list-item v-bind="props">
+                              <template v-slot:prepend>
+                                <v-icon icon="mdi-cellphone-link" class="mr-2"></v-icon>
+                              </template>
+                              <v-list-item-title>{{ item.raw.name }}</v-list-item-title>
+                              <v-list-item-subtitle>ID: {{ item.raw.id }}</v-list-item-subtitle>
+                            </v-list-item>
+                          </template>
+                        </v-select>
+
+                        <v-text-field
+                          v-model="newSideTripDevice.color"
+                          label="Route Color"
+                          variant="outlined"
+                          density="comfortable"
+                          type="color"
+                          prepend-inner-icon="mdi-palette"
+                          hint="Color for this device's route"
+                          persistent-hint
+                          class="mb-3"
+                        ></v-text-field>
+
+                        <v-slider
+                          v-model="newSideTripDevice.lineWeight"
+                          label="Line Weight"
+                          min="1"
+                          max="5"
+                          step="1"
+                          thumb-label
+                          hint="Thickness of the route line"
+                          persistent-hint
+                          class="mb-3"
+                        ></v-slider>
+
+                        <v-switch
+                          v-model="newSideTripDevice.enabled"
+                          label="Enabled"
+                          color="primary"
+                          hint="Show this device's routes on the map"
+                          persistent-hint
+                        ></v-switch>
+                      </v-card-text>
+                      <v-card-actions>
+                        <v-spacer></v-spacer>
+                        <v-btn variant="text" @click="cancelEditSideTripDevice">Cancel</v-btn>
+                        <v-btn
+                          color="primary"
+                          variant="elevated"
+                          @click="editingSideTripDevice ? updateSideTripDevice() : addSideTripDevice()"
+                          :disabled="!newSideTripDevice.deviceId"
+                        >
+                          <v-icon icon="mdi-content-save" class="mr-2"></v-icon>
+                          {{ editingSideTripDevice ? 'Update' : 'Add' }}
+                        </v-btn>
+                      </v-card-actions>
+                    </v-card>
+
+                    <!-- Devices List -->
+                    <div v-if="settings.sideTripDevices.length === 0" class="text-center py-4 text-grey">
+                      No secondary devices configured yet. Add one above.
+                    </div>
+
+                    <v-list v-else density="compact">
+                      <v-list-item
+                        v-for="device in settings.sideTripDevices"
+                        :key="device.deviceId"
+                        class="mb-2"
+                        border
+                      >
+                        <template v-slot:prepend>
+                          <div
+                            :style="{
+                              width: '24px',
+                              height: '24px',
+                              backgroundColor: device.color,
+                              borderRadius: '4px',
+                              marginRight: '8px'
+                            }"
+                          ></div>
+                        </template>
+
+                        <v-list-item-title class="font-weight-medium">
+                          {{ device.deviceName }}
+                          <v-chip v-if="!device.enabled" size="x-small" color="grey" class="ml-2">Disabled</v-chip>
+                        </v-list-item-title>
+
+                        <v-list-item-subtitle>
+                          Device ID: {{ device.deviceId }} | Line Weight: {{ device.lineWeight }}px
+                        </v-list-item-subtitle>
+
+                        <template v-slot:append>
+                          <v-btn
+                            icon="mdi-pencil"
+                            variant="text"
+                            size="small"
+                            color="primary"
+                            @click="editSideTripDevice(device)"
+                            class="mr-1"
+                          ></v-btn>
+                          <v-btn
+                            icon="mdi-delete"
+                            variant="text"
+                            size="small"
+                            color="error"
+                            @click="deleteSideTripDevice(device.deviceId)"
+                          ></v-btn>
+                        </template>
+                      </v-list-item>
+                    </v-list>
+
+                    <!-- Info Alert -->
+                    <v-alert
+                      type="info"
+                      variant="tonal"
+                      density="compact"
+                      class="mt-4"
+                    >
+                      <div class="text-body-2">
+                        <strong>How it works:</strong> Secondary device routes will only appear on the map during main vehicle standstill periods ({{ settings.standPeriod }}+ hours). Perfect for tracking bicycle tours or town visits while camping!
+                      </div>
+                    </v-alert>
+                  </div>
                 </v-expansion-panel-text>
               </v-expansion-panel>
             </v-expansion-panels>

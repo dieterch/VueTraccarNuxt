@@ -44,6 +44,10 @@ export default defineEventHandler(async (event) => {
     if (body.standPeriod) settings.standPeriod = parseInt(body.standPeriod)
     if (body.startDate) settings.startDate = body.startDate
 
+    // Side Trip Tracking
+    if (body.sideTripEnabled !== undefined) settings.sideTripEnabled = body.sideTripEnabled
+    if (body.sideTripDevices !== undefined) settings.sideTripDevices = body.sideTripDevices
+
     const yamlPath = join(process.cwd(), 'data', 'settings.yml')
     const yamlContent = stringifyYaml(settings)
 

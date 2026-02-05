@@ -96,11 +96,29 @@ export interface MapMarker {
   address: string
 }
 
+export interface SideTripDevice {
+  deviceId: number
+  deviceName: string
+  color: string
+  lineWeight: number
+  enabled: boolean
+}
+
+export interface DevicePolyline {
+  deviceId: number
+  deviceName: string
+  color: string
+  lineWeight: number
+  path: Array<{ lat: number; lng: number }>
+  isMainDevice: boolean
+}
+
 export interface PlotMapsResponse {
   bounds: MapBounds
   center: MapCenter
   zoom: number
   distance: number
-  polygone: Array<{ lat: number; lng: number }>
+  polygone: Array<{ lat: number; lng: number }> // Deprecated: kept for backward compatibility
+  polylines: DevicePolyline[] // New: supports multiple device routes
   locations: MapMarker[]
 }

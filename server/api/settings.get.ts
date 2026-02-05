@@ -47,6 +47,10 @@ export default defineEventHandler(async (event) => {
         minDays: data.minDays || config.minDays,
         standPeriod: data.standPeriod || config.standPeriod,
         startDate: data.startDate || config.startDate,
+
+        // Side Trip Tracking
+        sideTripEnabled: data.sideTripEnabled !== undefined ? data.sideTripEnabled : false,
+        sideTripDevices: data.sideTripDevices || [],
       }
     }
   } catch (error: any) {
@@ -89,6 +93,10 @@ export default defineEventHandler(async (event) => {
           minDays: config.minDays,
           standPeriod: config.standPeriod,
           startDate: config.startDate,
+
+          // Side Trip Tracking
+          sideTripEnabled: false,
+          sideTripDevices: [],
         }
       }
     }

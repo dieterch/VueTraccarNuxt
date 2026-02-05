@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import type { MapCenter, MapMarker } from '~/types/traccar'
+import type { MapCenter, MapMarker, DevicePolyline } from '~/types/traccar'
 import { useTraccar } from './useTraccar'
 
 export const useMapData = () => {
@@ -7,6 +7,7 @@ export const useMapData = () => {
 
   // Map state
   const polygone = useState<Array<{ lat: number; lng: number }>>('polygone', () => [])
+  const polylines = useState<DevicePolyline[]>('polylines', () => [])
   const center = useState<MapCenter>('center', () => ({ lat: 0, lng: 0 }))
   const zoom = useState<number>('zoom', () => 10)
   const distance = useState<number>('distance', () => 0)
@@ -38,12 +39,36 @@ export const useMapData = () => {
       isLoading.value = true
 
       const payload = traccarPayload()
+
+      // Load side trip configuration from settings
+      let sideTripConfig = null
+      try {
+        const settingsResponse = await $fetch('/api/settings')
+        if (settingsResponse.success && settingsResponse.settings.sideTripEnabled) {
+          sideTripConfig = {
+            enabled: settingsResponse.settings.sideTripEnabled,
+            devices: settingsResponse.settings.sideTripDevices || []
+          }
+          console.log('Side trip config loaded:', sideTripConfig)
+        }
+      } catch (error) {
+        console.error('Error loading side trip settings:', error)
+        // Continue without side trips
+      }
+
+      // Add sideTripConfig to payload
+      const apiPayload = {
+        ...payload,
+        sideTripConfig
+      }
+
       const data = await $fetch('/api/plotmaps', {
         method: 'POST',
-        body: payload
+        body: apiPayload
       })
 
       polygone.value = data.polygone
+      polylines.value = data.polylines || []
       zoom.value = data.zoom
       center.value = data.center
       distance.value = data.distance
@@ -51,6 +76,7 @@ export const useMapData = () => {
 
       console.log('Map rendered:', {
         polygone: polygone.value.length,
+        polylines: polylines.value.length,
         zoom: zoom.value,
         center: center.value,
         distance: distance.value,
@@ -69,6 +95,7 @@ export const useMapData = () => {
   return {
     // State
     polygone,
+    polylines,
     center,
     zoom,
     distance,

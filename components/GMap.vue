@@ -22,7 +22,7 @@ console.log('API Key present:', !!maps_api_key);
 console.log('API Key length:', maps_api_key?.length);
 console.log('Map ID:', maps_map_id);
 
-const { polygone, center, zoom, locations, togglemarkers, togglepath } = useMapData();
+const { polygone, polylines, center, zoom, locations, togglemarkers, togglepath } = useMapData();
 const { getDocument } = useDocuments();
 
 // Debug map state
@@ -179,7 +179,52 @@ function copyToClipboard(key) {
       :zoom="zoom"
       @click="closeInfoWindows"
     >
-    <Polyline v-if="togglepath" :options="flightPath" />
+    <!-- Render multiple polylines (new multi-device support) -->
+    <template v-if="togglepath && polylines.length > 0">
+      <Polyline
+        v-for="(polyline, index) in polylines"
+        :key="`polyline-${polyline.deviceId}-${index}`"
+        :options="{
+          path: polyline.path,
+          geodesic: true,
+          strokeColor: polyline.color,
+          strokeOpacity: 1.0,
+          strokeWeight: polyline.lineWeight,
+          zIndex: polyline.isMainDevice ? 100 : 50
+        }"
+      />
+    </template>
+
+    <!-- Fallback to single polyline (backward compatibility) -->
+    <Polyline v-else-if="togglepath && polygone.length > 0" :options="flightPath" />
+
+    <!-- Legend for multiple routes -->
+    <div
+      v-if="togglepath && polylines.length > 1"
+      style="position: absolute; top: 10px; right: 10px; background: white; padding: 12px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); z-index: 1000; max-width: 250px;"
+    >
+      <div style="font-weight: 600; font-size: 0.9em; margin-bottom: 8px; color: #333;">Routes</div>
+      <div
+        v-for="polyline in polylines"
+        :key="`legend-${polyline.deviceId}`"
+        style="display: flex; align-items: center; margin-bottom: 6px; font-size: 0.85em;"
+      >
+        <div
+          :style="{
+            width: '20px',
+            height: polyline.lineWeight + 'px',
+            backgroundColor: polyline.color,
+            marginRight: '8px',
+            borderRadius: '2px'
+          }"
+        ></div>
+        <span style="color: #666;">
+          {{ polyline.deviceName }}
+          <span v-if="polyline.isMainDevice" style="color: #999; font-size: 0.9em;">(main)</span>
+        </span>
+      </div>
+    </div>
+
     <MarkerCluster v-if="togglemarkers">
       <Marker
         v-for="(location, i) in locations"
