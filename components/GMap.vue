@@ -825,7 +825,11 @@ function copyToClipboard(key) {
             <v-icon icon="mdi-clock-start" size="x-small" color="primary"></v-icon>
             <span style="font-weight: 500; font-size: 12px;">Start</span>
           </div>
-          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 4px;">
+          <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-bottom: 4px;">
+            <button
+              @click="adjustStandstillTime(currentAdjustmentLocation.key, 'start', -720)"
+              style="padding: 4px; font-size: 11px; border: 1px solid #f44336; background: white; color: #f44336; border-radius: 4px; cursor: pointer;"
+            >-12h</button>
             <button
               @click="adjustStandstillTime(currentAdjustmentLocation.key, 'start', -60)"
               style="padding: 4px; font-size: 11px; border: 1px solid #f44336; background: white; color: #f44336; border-radius: 4px; cursor: pointer;"
@@ -842,6 +846,10 @@ function copyToClipboard(key) {
               @click="adjustStandstillTime(currentAdjustmentLocation.key, 'start', 60)"
               style="padding: 4px; font-size: 11px; border: 1px solid #4caf50; background: white; color: #4caf50; border-radius: 4px; cursor: pointer;"
             >+1h</button>
+            <button
+              @click="adjustStandstillTime(currentAdjustmentLocation.key, 'start', 720)"
+              style="padding: 4px; font-size: 11px; border: 1px solid #4caf50; background: white; color: #4caf50; border-radius: 4px; cursor: pointer;"
+            >+12h</button>
           </div>
           <div style="background: #e3f2fd; padding: 4px 8px; border-radius: 4px; text-align: center; font-size: 12px;">
             {{ getAdjustedTime(currentAdjustmentLocation.von, standstillAdjustments[currentAdjustmentLocation.key]?.start || 0) }}
@@ -857,7 +865,11 @@ function copyToClipboard(key) {
             <v-icon icon="mdi-clock-end" size="x-small" color="error"></v-icon>
             <span style="font-weight: 500; font-size: 12px;">Ende</span>
           </div>
-          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 4px;">
+          <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-bottom: 4px;">
+            <button
+              @click="adjustStandstillTime(currentAdjustmentLocation.key, 'end', -720)"
+              style="padding: 4px; font-size: 11px; border: 1px solid #f44336; background: white; color: #f44336; border-radius: 4px; cursor: pointer;"
+            >-12h</button>
             <button
               @click="adjustStandstillTime(currentAdjustmentLocation.key, 'end', -60)"
               style="padding: 4px; font-size: 11px; border: 1px solid #f44336; background: white; color: #f44336; border-radius: 4px; cursor: pointer;"
@@ -874,6 +886,10 @@ function copyToClipboard(key) {
               @click="adjustStandstillTime(currentAdjustmentLocation.key, 'end', 60)"
               style="padding: 4px; font-size: 11px; border: 1px solid #4caf50; background: white; color: #4caf50; border-radius: 4px; cursor: pointer;"
             >+1h</button>
+            <button
+              @click="adjustStandstillTime(currentAdjustmentLocation.key, 'end', 720)"
+              style="padding: 4px; font-size: 11px; border: 1px solid #4caf50; background: white; color: #4caf50; border-radius: 4px; cursor: pointer;"
+            >+12h</button>
           </div>
           <div style="background: #e3f2fd; padding: 4px 8px; border-radius: 4px; text-align: center; font-size: 12px;">
             {{ getAdjustedTime(currentAdjustmentLocation.bis, standstillAdjustments[currentAdjustmentLocation.key]?.end || 0) }}
