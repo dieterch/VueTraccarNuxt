@@ -37,7 +37,7 @@ const standstillAdjustments = ref<Record<string, { start: number, end: number }>
 // Time adjustment dialog state
 const adjustmentDialog = ref(false);
 const currentAdjustmentLocation = ref(null);
-const dialogPosition = ref({ x: 20, y: 20 });
+const dialogPosition = ref({ x: 0, y: 0 }); // Will be calculated on open
 const isDragging = ref(false);
 const dragOffset = ref({ x: 0, y: 0 });
 
@@ -182,28 +182,65 @@ async function loadStandstillAdjustment(standstillKey: string) {
   }
 }
 
+// Calculate safe initial position for dialog (centered, accessible on mobile)
+function calculateDialogPosition() {
+  const dialogWidth = 320 // matches dialog width in template
+  const dialogHeight = 400 // approximate height
+
+  const viewportWidth = window.innerWidth
+  const viewportHeight = window.innerHeight
+
+  // Center horizontally, but position in upper third of screen (not too high)
+  const x = Math.max(20, (viewportWidth - dialogWidth) / 2)
+  const y = Math.max(100, viewportHeight * 0.25) // 25% from top, minimum 100px
+
+  return { x, y }
+}
+
 // Open adjustment dialog
 function openAdjustmentDialog(location) {
   currentAdjustmentLocation.value = location
+  dialogPosition.value = calculateDialogPosition()
   adjustmentDialog.value = true
 }
 
-// Drag handlers for floating dialog
-function startDrag(event: MouseEvent) {
+// Drag handlers for floating dialog (supports both mouse and touch)
+function startDrag(event: MouseEvent | TouchEvent) {
+  event.preventDefault()
   isDragging.value = true
+
+  const clientX = 'touches' in event ? event.touches[0].clientX : event.clientX
+  const clientY = 'touches' in event ? event.touches[0].clientY : event.clientY
+
   dragOffset.value = {
-    x: event.clientX - dialogPosition.value.x,
-    y: event.clientY - dialogPosition.value.y
+    x: clientX - dialogPosition.value.x,
+    y: clientY - dialogPosition.value.y
   }
+
   document.addEventListener('mousemove', onDrag)
   document.addEventListener('mouseup', stopDrag)
+  document.addEventListener('touchmove', onDrag, { passive: false })
+  document.addEventListener('touchend', stopDrag)
 }
 
-function onDrag(event: MouseEvent) {
+function onDrag(event: MouseEvent | TouchEvent) {
   if (isDragging.value) {
+    if ('touches' in event) {
+      event.preventDefault()
+    }
+
+    const clientX = 'touches' in event ? event.touches[0].clientX : event.clientX
+    const clientY = 'touches' in event ? event.touches[0].clientY : event.clientY
+
+    // Keep dialog within viewport bounds
+    const dialogWidth = 320
+    const dialogHeight = 400
+    const maxX = window.innerWidth - dialogWidth
+    const maxY = window.innerHeight - dialogHeight
+
     dialogPosition.value = {
-      x: event.clientX - dragOffset.value.x,
-      y: event.clientY - dragOffset.value.y
+      x: Math.max(0, Math.min(maxX, clientX - dragOffset.value.x)),
+      y: Math.max(0, Math.min(maxY, clientY - dragOffset.value.y))
     }
   }
 }
@@ -212,6 +249,8 @@ function stopDrag() {
   isDragging.value = false
   document.removeEventListener('mousemove', onDrag)
   document.removeEventListener('mouseup', stopDrag)
+  document.removeEventListener('touchmove', onDrag)
+  document.removeEventListener('touchend', stopDrag)
 }
 
 // Adjust start or end time
@@ -714,6 +753,7 @@ function copyToClipboard(key) {
       <!-- Draggable Header -->
       <div
         @mousedown="startDrag"
+        @touchstart="startDrag"
         style="
           background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
           color: white;
@@ -724,6 +764,7 @@ function copyToClipboard(key) {
           justify-content: space-between;
           align-items: center;
           user-select: none;
+          touch-action: none;
         "
       >
         <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600;">
@@ -734,7 +775,9 @@ function copyToClipboard(key) {
           icon="mdi-close"
           size="small"
           color="white"
-          @click="adjustmentDialog = false"
+          @click.stop="adjustmentDialog = false"
+          @mousedown.stop
+          @touchstart.stop
           style="cursor: pointer;"
         ></v-icon>
       </div>
