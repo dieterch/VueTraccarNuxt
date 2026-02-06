@@ -41,6 +41,18 @@ const dialogPosition = ref({ x: 0, y: 0 }); // Will be calculated on open
 const isDragging = ref(false);
 const dragOffset = ref({ x: 0, y: 0 });
 
+// Computed property for responsive InfoWindow sizing (iPhone-only)
+const infoWindowWidth = computed(() => {
+  const vw = window.innerWidth
+  if (vw <= 425) {
+    return {
+      minWidth: Math.max(280, vw - 50),
+      maxWidth: Math.max(300, vw - 25)
+    }
+  }
+  return { minWidth: 300, maxWidth: 350 }
+})
+
 // Polyline visibility state
 const polylineVisibility = ref<Record<string, boolean>>({});
 
@@ -184,15 +196,25 @@ async function loadStandstillAdjustment(standstillKey: string) {
 
 // Calculate safe initial position for dialog (centered, accessible on mobile)
 function calculateDialogPosition() {
-  const dialogWidth = 320 // matches dialog width in template
-  const dialogHeight = 400 // approximate height
-
   const viewportWidth = window.innerWidth
   const viewportHeight = window.innerHeight
 
-  // Center horizontally, but position in upper third of screen (not too high)
+  // iPhone-specific responsive width
+  const dialogWidth = viewportWidth <= 425
+    ? Math.min(viewportWidth * 0.9, 350)
+    : 320
+  const dialogHeight = 400
+
+  // Center horizontally
   const x = Math.max(20, (viewportWidth - dialogWidth) / 2)
-  const y = Math.max(100, viewportHeight * 0.25) // 25% from top, minimum 100px
+
+  // iPhone-only: Account for safe areas (notch, Dynamic Island)
+  let y = Math.max(100, viewportHeight * 0.25)
+  if (viewportWidth <= 425) {
+    const safeAreaTop = parseInt(getComputedStyle(document.documentElement)
+      .getPropertyValue('--sat') || '0') || 44
+    y = Math.max(safeAreaTop + 60, viewportHeight * 0.25)
+  }
 
   return { x, y }
 }
@@ -227,13 +249,16 @@ function onDrag(event: MouseEvent | TouchEvent) {
   if (isDragging.value) {
     if ('touches' in event) {
       event.preventDefault()
+      event.stopPropagation() // Prevent scroll interference
     }
 
     const clientX = 'touches' in event ? event.touches[0].clientX : event.clientX
     const clientY = 'touches' in event ? event.touches[0].clientY : event.clientY
 
-    // Keep dialog within viewport bounds
-    const dialogWidth = 320
+    // Keep dialog within viewport bounds - use responsive width
+    const dialogWidth = window.innerWidth <= 425
+      ? Math.min(window.innerWidth * 0.9, 350)
+      : 320
     const dialogHeight = 400
     const maxX = window.innerWidth - dialogWidth
     const maxY = window.innerHeight - dialogHeight
@@ -618,8 +643,7 @@ function copyToClipboard(key) {
         <InfoWindow
           :options="{
             position: location,
-            minWidth: 300,
-            maxWidth: 350
+            ...infoWindowWidth
           }"
           v-model="location.infowindow"
         >
@@ -742,7 +766,7 @@ function copyToClipboard(key) {
         left: `${dialogPosition.x}px`,
         top: `${dialogPosition.y}px`,
         zIndex: 1000,
-        width: '320px',
+        width: window.innerWidth <= 425 ? `${Math.min(window.innerWidth * 0.9, 350)}px` : '320px',
         backgroundColor: 'rgba(255, 255, 255, 0.95)',
         borderRadius: '8px',
         boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
@@ -877,6 +901,14 @@ function copyToClipboard(key) {
 </template>
 
 <style>
+/* Safe area support for iPhone notch/Dynamic Island */
+:root {
+  --sat: env(safe-area-inset-top);
+  --sar: env(safe-area-inset-right);
+  --sab: env(safe-area-inset-bottom);
+  --sal: env(safe-area-inset-left);
+}
+
 /* InfoWindow Styling - Größe begrenzen */
 :deep(.gm-style-iw) {
   max-width: 350px !important;
@@ -942,6 +974,60 @@ function copyToClipboard(key) {
   :deep(.gm-style-iw-d #content) {
     padding-right: 12px !important;
     padding-bottom: 14px !important;
+  }
+}
+
+/* ===== iPhone-specific optimizations - NO IMPACT on iPad/Desktop ===== */
+
+/* Priority 3: Increase touch targets to meet iOS HIG 44x44pt minimum */
+@media (max-width: 425px) {
+  /* Time adjustment dialog buttons */
+  div[style*="position: fixed"] button {
+    padding: 10px 8px !important;
+    font-size: 13px !important;
+    min-height: 40px !important;
+  }
+
+  /* Increase button grid gap */
+  div[style*="position: fixed"] div[style*="grid-template-columns"] {
+    gap: 8px !important;
+  }
+
+  /* Priority 5: Increase font sizes for iPhone readability */
+  div[style*="position: fixed"] [style*="font-size: 14px"] {
+    font-size: 15px !important;
+  }
+
+  div[style*="position: fixed"] [style*="font-size: 13px"] {
+    font-size: 14px !important;
+  }
+
+  div[style*="position: fixed"] [style*="font-size: 12px"] {
+    font-size: 13px !important;
+  }
+
+  /* InfoWindow content font size */
+  :deep(.gm-style-iw-d #content) {
+    font-size: 14px !important;
+    line-height: 1.5 !important;
+  }
+
+  /* InfoWindow sizing for small phones */
+  :deep(.gm-style-iw) {
+    max-width: calc(100vw - 40px) !important;
+  }
+
+  :deep(.gm-style-iw-c) {
+    max-width: calc(100vw - 40px) !important;
+  }
+}
+
+/* Priority 4: Responsive button grid layout for very small iPhones */
+@media (max-width: 400px) {
+  /* 2-column button layout for iPhone SE and similar */
+  :deep(.gm-style-iw-d #bodyContent > div:last-child > div) {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
   }
 }
 </style>
