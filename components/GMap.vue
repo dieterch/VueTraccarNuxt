@@ -7,7 +7,7 @@ import {
   Polyline,
   InfoWindow,
 } from "vue3-google-map";
-import { GoogleMapsLink } from "~/utils/maps";
+import { GoogleMapsLink, stripPlusCode } from "~/utils/maps";
 import { useMapData } from "~/composables/useMapData";
 import { useDocuments } from "~/composables/useDocuments";
 import MDDialog from "./MDDialog.vue";
@@ -158,7 +158,7 @@ async function handleMarkerClick(location) {
     await new Promise(resolve => setTimeout(resolve, 350));
 
     // Schritt 3: Verschiebe Marker nach unten (InfoWindow bleibt sichtbar)
-    map.panBy(0, -160);
+    map.panBy(0, -120);
   }
 }
 
@@ -586,7 +586,7 @@ function copyToClipboard(key) {
         >
           <div id="content">
             <div id="siteNotice"></div>
-            <h2>{{ location.address.split(",")[0] }}</h2>
+            <h2>{{ stripPlusCode(location.address.split(",")[0]) }}</h2>
             <div id="bodyContent">
               <h4 v-for="(line, i) in location.address.split(',').slice(1)" :key="i">{{ line }}</h4>
               
@@ -614,10 +614,10 @@ function copyToClipboard(key) {
               </table>
 
               <div style="margin-top: 15px; border-top: 2px solid #1976d2; padding-top: 15px">
-                <h3 style="margin: 0 0 12px 0; font-size: 1.1em; color: #1976d2">📝 Reiseberichte</h3>
+                <h3 style="margin: 0 0 12px 0; font-size: 1.1em; color: #1976d2">Reiseberichte</h3>
 
                 <div v-if="wordpressPosts[location.key] && wordpressPosts[location.key].length > 0">
-                  <div v-for="post in wordpressPosts[location.key].slice(0, 3)" :key="post.id" style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #e0e0e0">
+                  <div v-for="post in wordpressPosts[location.key].slice(0, 3)" :key="post.id" style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 0px solid #e0e0e0">
                     <h4 style="margin: 0 0 5px 0; font-size: 1em">
                       <a :href="post.link" target="_blank" style="color: #1976d2; text-decoration: none; font-weight: 500">{{ post.title.rendered }}</a>
                     </h4>
@@ -636,10 +636,16 @@ function copyToClipboard(key) {
               </div>
 
               <div style="margin-top: 15px; border-top: 2px solid #ddd; padding-top: 15px;">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px;">
+
                   <v-btn color="primary" size="small" @click="openmddialog(location.key)">
                     <v-icon icon="mdi-notebook-edit" size="small"></v-icon>
+                      <v-tooltip
+                        activator="parent"
+                        location="top"
+                      >Notizen</v-tooltip>
                   </v-btn>
+
 
                   <v-btn
                     color="warning"
@@ -648,6 +654,10 @@ function copyToClipboard(key) {
                   >
                     <v-icon icon="mdi-clock-edit" size="small"></v-icon>
                     {{ (standstillAdjustments[location.key]?.start || standstillAdjustments[location.key]?.end) ? '⚙️' : '' }}
+                    <v-tooltip
+                        activator="parent"
+                        location="top"
+                      >Stillstandszeit anpassen</v-tooltip>
                   </v-btn>
 
                   <v-btn
@@ -658,6 +668,10 @@ function copyToClipboard(key) {
                     :disabled="loadingSideTrips[location.key]"
                   >
                     <v-icon icon="mdi-bicycle" size="small"></v-icon>
+                      <v-tooltip
+                        activator="parent"
+                        location="top"
+                      >Ausflüge anzeigen</v-tooltip>
                   </v-btn>
 
                   <v-btn
@@ -667,6 +681,10 @@ function copyToClipboard(key) {
                     @click.stop="copyToClipboard(location.key)"
                   >
                     <v-icon icon="mdi-content-copy" size="small"></v-icon>
+                      <v-tooltip
+                        activator="parent"
+                        location="top"
+                      >Wordpress Marker kopieren</v-tooltip>
                   </v-btn>
                 </div>
               </div>
@@ -725,7 +743,7 @@ function copyToClipboard(key) {
       <div style="padding: 12px; font-size: 13px;">
         <!-- Location Name -->
         <div style="font-weight: 600; margin-bottom: 8px; color: #333;">
-          {{ currentAdjustmentLocation.address.split(",")[0] }}
+          {{ stripPlusCode(currentAdjustmentLocation.address.split(",")[0]) }}
         </div>
 
         <!-- Start Time -->

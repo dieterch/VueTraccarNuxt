@@ -4,19 +4,20 @@ import { join } from 'path'
 import type { TraccarEvent, StandstillPeriod } from '~/types/traccar'
 import type { Travel, TravelPatch, TravelsYaml } from '~/types/route'
 import { calculateDistance, filterStandstillPeriods } from './route-analyzer'
+import { stripPlusCode } from '~/utils/maps'
 
 export class TravelAnalyzer {
   private config = useRuntimeConfig()
   private travelPatches: TravelsYaml = {}
   private homeGeofenceId: number = 1
 
-  /**
-   * Strip Plus Code from address (e.g., "2HCR+WM Krk, Croatia" → "Krk, Croatia")
-   */
-  private stripPlusCode(address: string): string {
-    // Plus Code pattern: 4 chars + plus sign + 2-3 chars, followed by space
-    return address.replace(/^[A-Z0-9]{4}\+[A-Z0-9]{2,3}\s+/, '')
-  }
+  // /**
+  //  * Strip Plus Code from address (e.g., "2HCR+WM Krk, Croatia" → "Krk, Croatia")
+  //  */
+  // private stripPlusCode(address: string): string {
+  //   // Plus Code pattern: 4 chars + plus sign + 2-3 chars, followed by space
+  //   return address.replace(/^[A-Z0-9]{4}\+[A-Z0-9]{2,3}\s+/, '')
+  // }
 
   /**
    * Find patches for travel key with fuzzy matching
@@ -29,7 +30,8 @@ export class TravelAnalyzer {
     }
 
     // Try without Plus Code
-    const stripped = this.stripPlusCode(address)
+    // const stripped = this.stripPlusCode(address)
+    const stripped = stripPlusCode(address)
     if (stripped !== address && this.travelPatches[stripped]) {
       console.log(`Matched '${address}' → '${stripped}' (Plus Code stripped)`)
       return this.travelPatches[stripped]

@@ -1,3 +1,12 @@
+
+/**
+ * Strip Plus Code from address (e.g., "2HCR+WM Krk, Croatia" → "Krk, Croatia")
+ */
+export const stripPlusCode = (address: string): string => {
+  // Plus Code pattern: 4 chars + plus sign + 2-3 chars, followed by space
+  return address.replace(/^[A-Z0-9]{4}\+[A-Z0-9]{2,3}\s+/, '')
+}
+
 /**
  * Convert decimal degrees to degrees/minutes/seconds format for Google Maps URL
  */
