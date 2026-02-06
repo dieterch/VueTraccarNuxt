@@ -623,7 +623,7 @@ function copyToClipboard(key) {
           }"
           v-model="location.infowindow"
         >
-          <div id="content">
+          <div id="content" style="padding: 4px 8px 8px 4px;">
             <div id="siteNotice"></div>
             <h2>{{ stripPlusCode(location.address.split(",")[0]) }}</h2>
             <div id="bodyContent">
@@ -769,7 +769,7 @@ function copyToClipboard(key) {
       >
         <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600;">
           <v-icon icon="mdi-clock-edit" size="small" color="white"></v-icon>
-          Zeit anpassen
+          Ausflugszeitraum anpassen
         </div>
         <v-icon
           icon="mdi-close"
@@ -894,6 +894,24 @@ function copyToClipboard(key) {
   overflow-y: auto !important;
 }
 
+/* Extra padding for mobile/tablet devices (Safari/iPad needs this) */
+/* Using both touch detection and viewport width for better iPad detection */
+@media (pointer: coarse) and (hover: none) {
+  :deep(.gm-style-iw-c) {
+    padding: 14px 14px 18px 14px !important;
+  }
+
+  :deep(.gm-style-iw-d) {
+    overflow-y: auto !important;
+  }
+}
+
+@media (max-width: 1024px) and (min-width: 768px) {
+  :deep(.gm-style-iw-c) {
+    padding: 14px 14px 18px 14px !important;
+  }
+}
+
 /* Scrollbar */
 :deep(.gm-style-iw-d::-webkit-scrollbar) {
   width: 6px;
@@ -911,5 +929,19 @@ function copyToClipboard(key) {
 
 :deep(.gm-style-iw-d::-webkit-scrollbar-thumb:hover) {
   background: #1565c0;
+}
+
+/* Ensure InfoWindow content has proper padding */
+:deep(.gm-style-iw-d #content) {
+  padding-right: 8px !important;
+  padding-bottom: 10px !important;
+}
+
+/* Additional padding for touch devices (iPad, tablets) */
+@media (pointer: coarse) and (hover: none) {
+  :deep(.gm-style-iw-d #content) {
+    padding-right: 12px !important;
+    padding-bottom: 14px !important;
+  }
 }
 </style>
