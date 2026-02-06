@@ -231,3 +231,53 @@ onMounted(async () => {
         </template>
     </v-app-bar>
 </template>
+
+<style scoped>
+/* iPhone-specific optimizations for travel dropdown */
+@media (max-width: 425px) {
+  /* Increase touch target size for select dropdown */
+  :deep(.v-select) {
+    min-height: 48px !important;
+  }
+
+  :deep(.v-select .v-field__input) {
+    min-height: 48px !important;
+    font-size: 16px !important;
+    padding-top: 12px !important;
+    padding-bottom: 12px !important;
+  }
+
+  :deep(.v-select .v-field__append-inner) {
+    padding-top: 12px !important;
+  }
+
+  :deep(.v-select .v-field__prepend-inner) {
+    padding-top: 12px !important;
+  }
+
+  /* Increase font size for better readability */
+  :deep(.v-select .v-select__selection) {
+    font-size: 16px !important;
+  }
+
+  :deep(.v-label) {
+    font-size: 14px !important;
+  }
+
+  /* Increase chip text size */
+  :deep(.v-chip) {
+    font-size: 15px !important;
+  }
+}
+
+/* Make travel dropdown menu items more touch-friendly on iPhone */
+@media (max-width: 425px) {
+  :deep(.v-list-item) {
+    min-height: 48px !important;
+  }
+
+  :deep(.v-list-item-title) {
+    font-size: 16px !important;
+  }
+}
+</style>

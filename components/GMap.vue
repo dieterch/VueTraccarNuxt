@@ -53,6 +53,12 @@ const infoWindowWidth = computed(() => {
   return { minWidth: 300, maxWidth: 350 }
 })
 
+// Computed property for responsive dialog width
+const dialogWidth = computed(() => {
+  const vw = window.innerWidth
+  return vw <= 425 ? Math.min(vw * 0.9, 350) : 320
+})
+
 // Polyline visibility state
 const polylineVisibility = ref<Record<string, boolean>>({});
 
@@ -766,7 +772,7 @@ function copyToClipboard(key) {
         left: `${dialogPosition.x}px`,
         top: `${dialogPosition.y}px`,
         zIndex: 1000,
-        width: window.innerWidth <= 425 ? `${Math.min(window.innerWidth * 0.9, 350)}px` : '320px',
+        width: `${dialogWidth}px`,
         backgroundColor: 'rgba(255, 255, 255, 0.95)',
         borderRadius: '8px',
         boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
