@@ -1,14 +1,15 @@
-# Timings Adjustments Export/Import Scripts
+# Database Export/Import Scripts
 
-Helper scripts to export and import standstill timing adjustments between different instances of the application.
+Helper scripts to export and import data between different instances of the application.
 
 ## Overview
 
 These scripts allow you to:
-- **Export** all timing adjustments from the database to a JSON file
+- **Export** timing adjustments from the database to a JSON file
 - **Import** timing adjustments from a JSON file into the database
-- Transfer timing adjustments between different application instances
-- Backup and restore timing adjustments
+- **Export** travel patch adjustments from the database to a YML file
+- Transfer data between different application instances
+- Backup and restore data
 
 ## Scripts
 
@@ -51,6 +52,90 @@ node scripts/export-timings.cjs /path/to/backup/timings.json
 }
 ```
 
+### export-travel-patches.cjs
+
+Exports all travel patch adjustments from the database to a YML file in the same format as `data/travels.yml`.
+
+**Usage:**
+```bash
+node scripts/export-travel-patches.cjs [output-file]
+```
+
+**Examples:**
+```bash
+# Export to default location (data/travel-patches.yml)
+node scripts/export-travel-patches.cjs
+
+# Export to a specific file
+node scripts/export-travel-patches.cjs my-patches.yml
+
+# Export to an absolute path
+node scripts/export-travel-patches.cjs /path/to/backup/travel-patches.yml
+```
+
+**Output Format:**
+```yaml
+Mobilheimplatz 6237/113, 7141 Podersdorf am See, Austria:
+  title: 2020 Ossiacher See, Bad Waltersdorf, Podersdorf am See, hohe Wand - Corona
+  from: null
+  to: null
+  exclude: null
+Camping Azzurro - Ledro, Via Alzer, 5, 38067 Pieve di Ledro TN, Italy:
+  title: 2020 Camping Azzurro - Ledro See
+  from: null
+  to: '2020-08-01'
+  exclude: null
+332, 6210 Bradl, Austria:
+  title: null
+  from: null
+  to: null
+  exclude: true
+```
+
+### import-travel-patches.cjs
+
+Imports travel patch adjustments from a YML file into the database.
+
+**Usage:**
+```bash
+node scripts/import-travel-patches.cjs <input-file> [options]
+```
+
+**Options:**
+- `--dry-run` - Show what would be imported without making changes
+- `--merge` - Merge with existing data (default behavior)
+- `--replace` - Delete all existing patches before import
+
+**Examples:**
+```bash
+# Import and merge with existing data (default)
+node scripts/import-travel-patches.cjs travel-patches.yml
+
+# Preview import without making changes
+node scripts/import-travel-patches.cjs travel-patches.yml --dry-run
+
+# Replace all existing patches
+node scripts/import-travel-patches.cjs travel-patches.yml --replace
+
+# Import from an absolute path
+node scripts/import-travel-patches.cjs /path/to/travel-patches.yml
+```
+
+**Input Format:**
+The input YML file should match the format of `data/travels.yml`:
+```yaml
+Address Key 1:
+  title: Travel title
+  from: Start date (or null)
+  to: End date (or null)
+  exclude: true (or null)
+Address Key 2:
+  title: Another travel
+  from: null
+  to: '2020-08-01'
+  exclude: null
+```
+
 ### import-timings.cjs
 
 Imports standstill timing adjustments from a JSON file into the database.
@@ -80,7 +165,15 @@ node scripts/import-timings.cjs timings-export.json --replace
 node scripts/import-timings.cjs /path/to/timings.json
 ```
 
-## Typical Workflow
+## Typical Workflows
+
+### Backing Up Travel Patches
+
+```bash
+# Export current travel patches
+cd /path/to/VueTraccarNuxt
+node scripts/export-travel-patches.cjs data/travel-patches-backup-$(date +%Y%m%d).yml
+```
 
 ### Backing Up Timing Adjustments
 
@@ -90,7 +183,30 @@ cd /path/to/VueTraccarNuxt
 node scripts/export-timings.cjs backup-$(date +%Y%m%d).json
 ```
 
-### Transferring to Another Instance
+### Transferring Travel Patches to Another Instance
+
+**On source instance:**
+```bash
+# Export travel patches
+node scripts/export-travel-patches.cjs travel-patches.yml
+
+# Copy file to target instance (example using scp)
+scp travel-patches.yml user@target-server:/path/to/target/instance/
+```
+
+**On target instance:**
+```bash
+# Preview what will be imported
+node scripts/import-travel-patches.cjs travel-patches.yml --dry-run
+
+# Import patches (merge with existing)
+node scripts/import-travel-patches.cjs travel-patches.yml
+
+# OR replace all existing patches
+node scripts/import-travel-patches.cjs travel-patches.yml --replace
+```
+
+### Transferring Timing Adjustments to Another Instance
 
 **On source instance:**
 ```bash
@@ -116,13 +232,34 @@ node scripts/import-timings.cjs timings-to-transfer.json --replace
 ### Restoring from Backup
 
 ```bash
-# Restore adjustments from backup
+# Restore travel patches from backup
+node scripts/import-travel-patches.cjs data/travel-patches-backup-20260206.yml --replace
+
+# Restore timing adjustments from backup
 node scripts/import-timings.cjs backup-20260206.json --replace
 ```
 
-## Data Structure
+## Data Structures
 
-The scripts work with the `standstill_adjustments` table which has the following structure:
+### Travel Patches
+
+The export-travel-patches script works with the `travel_patches` table which has the following structure:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `address_key` | TEXT | Unique identifier for the address (location) |
+| `title` | TEXT | Custom title/description for the travel |
+| `from_date` | TEXT | Start date filter (ISO format) |
+| `to_date` | TEXT | End date filter (ISO format) |
+| `exclude` | INTEGER | Whether to exclude this location (1 = true, 0 = false) |
+| `created_at` | TEXT | ISO timestamp of creation |
+| `updated_at` | TEXT | ISO timestamp of last update |
+
+**Note:** The export format matches the structure of `data/travels.yml` and can be used as a reference or backup.
+
+### Timing Adjustments
+
+The timing scripts work with the `standstill_adjustments` table which has the following structure:
 
 | Field | Type | Description |
 |-------|------|-------------|
