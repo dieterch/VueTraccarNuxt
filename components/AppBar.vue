@@ -5,7 +5,7 @@ import { useMapData } from '~/composables/useMapData';
 import { setCookie, deleteCookie } from '~/utils/crypto';
 
 const { startdate, stopdate, travel, travels, getTravels, downloadKml, rebuildCache, checkCacheStatus, prefetchRoute } = useTraccar();
-const { distance, renderMap, settingsdialog, configdialog, aboutdialog } = useMapData();
+const { distance, renderMap, settingsdialog, configdialog, aboutdialog, poiMode } = useMapData();
 
 const prefetching = ref(false);
 
@@ -34,7 +34,7 @@ async function update_travel(item) {
     renderMap()
 }
 
-const menuitems = ref(['Settings', 'About', 'Debug', 'Export als KML', 'Log Out', 'Prefetch again']) //, 'Export als GPX', 'Export als CSV', 'Export als PDF'])
+const menuitems = ref(['Settings', 'About', 'Debug', 'POI Mode', 'Export als KML', 'Log Out', 'Prefetch again']) //, 'Export als GPX', 'Export als CSV', 'Export als PDF'])
 async function domenu(item) {
     switch (item) {
         case 'Settings':
@@ -45,6 +45,10 @@ async function domenu(item) {
             break;
         case 'Debug':
             openSettingsDialog()
+            break;
+        case 'POI Mode':
+            poiMode.value = !poiMode.value
+            console.log('POI Mode toggled:', poiMode.value)
             break;
         case 'Export als KML':
             downloadKml()
@@ -160,7 +164,15 @@ onMounted(async () => {
                         :key="index"
                         :value="item"
                     >
-                        <v-list-item-title @click="domenu(item)">{{ item }}</v-list-item-title>
+                        <v-list-item-title @click="domenu(item)">
+                            <template v-if="item === 'POI Mode'">
+                                <v-icon :icon="poiMode ? 'mdi-checkbox-marked' : 'mdi-checkbox-blank-outline'" size="small" class="mr-2"></v-icon>
+                                POI Mode {{ poiMode ? '(On)' : '(Off)' }}
+                            </template>
+                            <template v-else>
+                                {{ item }}
+                            </template>
+                        </v-list-item-title>
                     </v-list-item>
                 </v-list>
             </v-menu>

@@ -51,10 +51,11 @@ export default defineEventHandler(async (event) => {
     // Calculate trip distance (end - start)
     const distance = route[route.length - 1].totalDistance - route[0].totalDistance
 
-    // Create main polyline (array of lat/lng)
+    // Create main polyline (array of lat/lng with timestamps)
     const polygone = route.map(p => ({
       lat: p.latitude,
-      lng: p.longitude
+      lng: p.longitude,
+      timestamp: p.fixTime
     }))
 
     // Get standstill periods for main device

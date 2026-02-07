@@ -22,7 +22,7 @@ console.log('API Key present:', !!maps_api_key);
 console.log('API Key length:', maps_api_key?.length);
 console.log('Map ID:', maps_map_id);
 
-const { polygone, polylines, sideTripPolylines, center, zoom, locations, togglemarkers, togglepath, isLoading, loadingMessage, fetchSideTrips, clearSideTrips } = useMapData();
+const { polygone, polylines, sideTripPolylines, center, zoom, locations, togglemarkers, togglepath, isLoading, loadingMessage, fetchSideTrips, clearSideTrips, poiMode, renderMap } = useMapData();
 const { getDocument } = useDocuments();
 
 // Side trip loading state
@@ -380,12 +380,20 @@ async function loadStandstillSideTrips(location, isReload = false) {
       return
     }
 
-    // Apply stored adjustments for this specific standstill
+    // Get stored adjustments for this specific standstill/POI
     const adjustment = standstillAdjustments.value[location.key] || { start: 0, end: 0 }
+
     const fromDate = new Date(location.von)
     const toDate = new Date(location.bis)
 
-    // Apply minute-based adjustments (negative values go backward, positive forward)
+    // NEW: If this is a POI (period = 0 or isPOI flag), apply default ±15 minute window
+    if (location.isPOI || location.period === 0) {
+      fromDate.setMinutes(fromDate.getMinutes() - 15)  // -15 minutes from timestamp
+      toDate.setMinutes(toDate.getMinutes() + 15)      // +15 minutes from timestamp
+      console.log(`📍 POI detected: applying default ±15 minute window`)
+    }
+
+    // Apply user adjustments on top of the default window (for POIs) or original times (for standstills)
     fromDate.setMinutes(fromDate.getMinutes() + adjustment.start)
     toDate.setMinutes(toDate.getMinutes() + adjustment.end)
 
@@ -394,8 +402,11 @@ async function loadStandstillSideTrips(location, isReload = false) {
 
     console.log(`🚴 Loading side trips for ${location.key}`)
     console.log(`   Original period: ${location.von} to ${location.bis}`)
-    console.log(`   Adjustments: start ${adjustment.start}min, end ${adjustment.end}min`)
-    console.log(`   Adjusted period: ${fromAdjusted} to ${toAdjusted}`)
+    if (location.isPOI || location.period === 0) {
+      console.log(`   Default POI window: ±15 minutes`)
+    }
+    console.log(`   User adjustments: start ${adjustment.start}min, end ${adjustment.end}min`)
+    console.log(`   Final period: ${fromAdjusted} to ${toAdjusted}`)
     console.log(`   Devices:`, deviceIds)
 
     await fetchSideTrips(fromAdjusted, toAdjusted, deviceIds)
@@ -465,6 +476,168 @@ function copyToClipboard(key) {
     alert(`Konnte Key nicht kopieren: ${key}\nBitte manuell kopieren oder im Textfeld markieren und Strg+C drücken.`);
   }
 }
+
+// Get marker icon based on location type
+function getMarkerIcon(location: any) {
+  if (location.isPOI) {
+    return {
+      path: 0, // google.maps.SymbolPath.CIRCLE
+      fillColor: '#4CAF50',  // Green
+      fillOpacity: 1,
+      strokeWeight: 2,
+      strokeColor: '#FFFFFF',
+      scale: 10
+    }
+  }
+  return undefined  // Default red pin for standstills
+}
+
+// POI Creation Functions
+async function handlePolylineClick(event: any, polyline: any) {
+  if (!poiMode.value) return
+
+  const clickedLat = event.latLng.lat()
+  const clickedLng = event.latLng.lng()
+
+  // Find nearest position in polyline path
+  const nearest = findNearestPosition(clickedLat, clickedLng, polyline.path)
+
+  if (nearest && nearest.timestamp) {
+    await createManualPOI(clickedLat, clickedLng, nearest.timestamp, polyline.deviceId)
+  } else {
+    alert('Could not determine timestamp for this location')
+  }
+}
+
+function findNearestPosition(lat: number, lng: number, path: any[]) {
+  let minDist = Infinity
+  let nearest = null
+
+  for (const pos of path) {
+    const dist = Math.sqrt(
+      Math.pow(pos.lat - lat, 2) +
+      Math.pow(pos.lng - lng, 2)
+    )
+    if (dist < minDist) {
+      minDist = dist
+      nearest = pos
+    }
+  }
+
+  return nearest
+}
+
+async function createManualPOI(lat: number, lng: number, timestamp: string, deviceId: number) {
+  try {
+    isLoading.value = true
+    loadingMessage.value = 'Creating POI...'
+
+    // NEW: Capture current map state before reload
+    let currentZoom = null
+    let currentCenter = null
+    if (mapRef.value?.map) {
+      currentZoom = mapRef.value.map.getZoom()
+      currentCenter = mapRef.value.map.getCenter()
+      console.log('💾 Saved map state:', { zoom: currentZoom, center: currentCenter?.toJSON() })
+    }
+
+    // Generate POI key
+    const key = `marker${String(lat).substring(0, 7)}${String(lng).substring(0, 7)}`
+      .replace(/\./g, '')
+      .replace(/-/g, 'M')
+
+    // Reverse geocode
+    const { country, address } = await reverseGeocodePOI(lat, lng)
+
+    // Save POI
+    await $fetch('/api/manual-pois', {
+      method: 'POST',
+      body: { lat, lng, timestamp, deviceId, address, country, key }
+    })
+
+    // Reload map (this will reset zoom/center)
+    await renderMap()
+
+    // NEW: Restore map state after reload
+    await nextTick()  // Wait for map to update
+    if (mapRef.value?.map && currentZoom && currentCenter) {
+      mapRef.value.map.setZoom(currentZoom)
+      mapRef.value.map.setCenter(currentCenter)
+      console.log('🔄 Restored map state:', { zoom: currentZoom })
+    }
+
+    console.log('✅ POI created:', key)
+  } catch (error) {
+    console.error('Error creating POI:', error)
+    alert('Fehler beim Erstellen des POI')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+async function reverseGeocodePOI(lat: number, lng: number) {
+  const apiKey = config.public.googleMapsApiKey
+
+  try {
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`
+    const response = await $fetch(url)
+
+    if (response.status === 'OK' && response.results.length > 0) {
+      const result = response.results[0]
+      const countryComponent = result.address_components.find(comp =>
+        comp.types.includes('country')
+      )
+
+      return {
+        country: countryComponent?.long_name || 'Unknown',
+        address: result.formatted_address
+      }
+    }
+  } catch (error) {
+    console.error('Geocoding error:', error)
+  }
+
+  return {
+    country: 'Unknown',
+    address: `${lat.toFixed(6)}, ${lng.toFixed(6)}`
+  }
+}
+
+// Delete POI
+async function deleteManualPOI(location: any) {
+  const addressShort = location.address.split(',')[0]
+  if (!confirm(`POI "${addressShort}" und zugehörige Anpassungen löschen?`)) {
+    return
+  }
+
+  try {
+    isLoading.value = true
+    loadingMessage.value = 'Lösche POI...'
+
+    // Delete standstill adjustments (ignore if none exist)
+    try {
+      await $fetch(`/api/standstill-adjustments/${location.key}`, { method: 'DELETE' })
+    } catch (err) {
+      console.log('No adjustments to delete')
+    }
+
+    // Delete POI
+    await $fetch(`/api/manual-pois/${location.poiId}`, { method: 'DELETE' })
+
+    // Clear side trips if loaded
+    clearSideTrips()
+
+    // Reload map
+    await renderMap()
+
+    console.log('✅ POI deleted')
+  } catch (error) {
+    console.error('Error deleting POI:', error)
+    alert('Fehler beim Löschen des POI')
+  } finally {
+    isLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -515,8 +688,10 @@ function copyToClipboard(key) {
           strokeColor: polyline.color,
           strokeOpacity: 1.0,
           strokeWeight: polyline.lineWeight,
+          clickable: true,
           zIndex: polyline.isMainDevice ? 100 : 50
         }"
+        @click="(e) => handlePolylineClick(e, polyline)"
       />
     </template>
 
@@ -643,7 +818,12 @@ function copyToClipboard(key) {
       <Marker
         v-for="(location, i) in locations"
         :key="i"
-        :options="{ position: location }"
+        :options="{
+          position: location,
+          icon: getMarkerIcon(location),
+          clickable: true,
+          optimized: false
+        }"
         @click="handleMarkerClick(location)"
       >
         <InfoWindow
@@ -754,6 +934,20 @@ function copyToClipboard(key) {
                         activator="parent"
                         location="top"
                       >Wordpress Marker kopieren</v-tooltip>
+                  </v-btn>
+                </div>
+
+                <!-- POI Delete Section -->
+                <div v-if="location.isPOI" style="margin-top: 15px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.2);">
+                  <v-btn
+                    block
+                    color="error"
+                    variant="elevated"
+                    size="small"
+                    @click="deleteManualPOI(location)"
+                  >
+                    <v-icon icon="mdi-delete" size="small" class="mr-2"></v-icon>
+                    POI löschen
                   </v-btn>
                 </div>
               </div>

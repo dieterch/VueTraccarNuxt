@@ -22,6 +22,10 @@ export const useMapData = () => {
   const toggleroute = useState<boolean>('toggleroute', () => false)
   const toggleEvents = useState<boolean>('toggleEvents', () => false)
 
+  // POI mode
+  const poiMode = useState<boolean>('poiMode', () => false)
+  const manualPOIs = useState<any[]>('manualPOIs', () => [])
+
   // Settings dialog
   const settingsdialog = useState<boolean>('settingsdialog', () => false)
 
@@ -34,6 +38,18 @@ export const useMapData = () => {
   // Loading state
   const isLoading = useState<boolean>('mapLoading', () => false)
   const loadingMessage = useState<string>('mapLoadingMessage', () => 'Loading...')
+
+  // Load manual POIs
+  const loadManualPOIs = async () => {
+    try {
+      const response = await $fetch('/api/manual-pois')
+      if (response.success) {
+        manualPOIs.value = response.pois
+      }
+    } catch (error) {
+      console.error('Error loading manual POIs:', error)
+    }
+  }
 
   // Render map
   const renderMap = async () => {
@@ -51,12 +67,30 @@ export const useMapData = () => {
         body: payload
       })
 
+      // Load manual POIs
+      await loadManualPOIs()
+
+      // Convert POIs to markers
+      const poiMarkers = manualPOIs.value.map(poi => ({
+        key: poi.poi_key,
+        lat: poi.latitude,
+        lng: poi.longitude,
+        title: poi.country,
+        von: poi.timestamp,
+        bis: poi.timestamp,
+        period: 0,
+        country: poi.country,
+        address: poi.address,
+        isPOI: true,
+        poiId: poi.id
+      }))
+
       polygone.value = data.polygone
       polylines.value = data.polylines || []
       zoom.value = data.zoom
       center.value = data.center
       distance.value = data.distance
-      locations.value = data.locations
+      locations.value = [...data.locations, ...poiMarkers]
 
       console.log('Map rendered:', {
         polygone: polygone.value.length,
@@ -141,6 +175,10 @@ export const useMapData = () => {
     configdialog,
     aboutdialog,
 
+    // POI Mode
+    poiMode,
+    manualPOIs,
+
     // Loading
     isLoading,
     loadingMessage,
@@ -148,6 +186,7 @@ export const useMapData = () => {
     // Methods
     renderMap,
     fetchSideTrips,
-    clearSideTrips
+    clearSideTrips,
+    loadManualPOIs
   }
 }

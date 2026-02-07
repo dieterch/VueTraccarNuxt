@@ -60,6 +60,32 @@ function initializeAppDatabase(database: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_standstill_key
     ON standstill_adjustments(standstill_key)
   `)
+
+  // Create manual_pois table
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS manual_pois (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      poi_key TEXT NOT NULL UNIQUE,
+      latitude REAL NOT NULL,
+      longitude REAL NOT NULL,
+      timestamp TEXT NOT NULL,
+      device_id INTEGER NOT NULL,
+      address TEXT,
+      country TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+
+  database.exec(`
+    CREATE INDEX IF NOT EXISTS idx_poi_key
+    ON manual_pois(poi_key)
+  `)
+
+  database.exec(`
+    CREATE INDEX IF NOT EXISTS idx_poi_device
+    ON manual_pois(device_id)
+  `)
 }
 
 export function getTravelPatches(): any[] {
@@ -165,6 +191,61 @@ export function saveStandstillAdjustment(adjustment: {
 export function deleteStandstillAdjustment(standstillKey: string): void {
   const database = getAppDb()
   database.prepare('DELETE FROM standstill_adjustments WHERE standstill_key = ?').run(standstillKey)
+}
+
+export function deleteStandstillAdjustmentByKey(key: string): void {
+  const database = getAppDb()
+  database.prepare('DELETE FROM standstill_adjustments WHERE standstill_key = ?').run(key)
+}
+
+export function getAllManualPOIs(): any[] {
+  const database = getAppDb()
+  const rows = database.prepare(`
+    SELECT * FROM manual_pois
+    ORDER BY timestamp DESC
+  `).all()
+  return rows as any[]
+}
+
+export function getManualPOI(id: number): any | null {
+  const database = getAppDb()
+  const row = database.prepare(`
+    SELECT * FROM manual_pois WHERE id = ?
+  `).get(id)
+  return row || null
+}
+
+export function saveManualPOI(poi: {
+  poiKey: string
+  latitude: number
+  longitude: number
+  timestamp: string
+  deviceId: number
+  address?: string
+  country?: string
+}): number {
+  const database = getAppDb()
+
+  const result = database.prepare(`
+    INSERT INTO manual_pois
+    (poi_key, latitude, longitude, timestamp, device_id, address, country)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    poi.poiKey,
+    poi.latitude,
+    poi.longitude,
+    poi.timestamp,
+    poi.deviceId,
+    poi.address || null,
+    poi.country || null
+  )
+
+  return result.lastInsertRowid as number
+}
+
+export function deleteManualPOI(id: number): void {
+  const database = getAppDb()
+  database.prepare('DELETE FROM manual_pois WHERE id = ?').run(id)
 }
 
 export function closeAppDatabase() {

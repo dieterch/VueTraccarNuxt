@@ -94,6 +94,8 @@ export interface MapMarker {
   period: number
   country: string
   address: string
+  isPOI?: boolean      // identifies POI markers
+  poiId?: number       // POI database ID for deletion
 }
 
 export interface SideTripDevice {
@@ -112,12 +114,25 @@ export interface StandstillAdjustment {
   updated_at?: string
 }
 
+export interface ManualPOI {
+  id: number
+  poi_key: string
+  latitude: number
+  longitude: number
+  timestamp: string
+  device_id: number
+  address: string
+  country: string
+  created_at: string
+  updated_at: string
+}
+
 export interface DevicePolyline {
   deviceId: number
   deviceName: string
   color: string
   lineWeight: number
-  path: Array<{ lat: number; lng: number }>
+  path: Array<{ lat: number; lng: number; timestamp?: string }>
   isMainDevice: boolean
 }
 
