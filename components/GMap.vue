@@ -110,19 +110,21 @@ const flightPath = ref({
 
 const mapRef = ref(null);
 
-// Track Ctrl key state for independent POI creation
+// Track Ctrl/Command key state for independent POI creation
 const isCtrlPressed = ref(false);
 
-// Keyboard event handlers
+// Keyboard event handlers (support both Ctrl and Command/Meta keys)
 function handleKeyDown(e: KeyboardEvent) {
-  if (e.key === 'Control') {
+  if (e.key === 'Control' || e.key === 'Meta' || e.metaKey || e.ctrlKey) {
     isCtrlPressed.value = true;
+    console.log('🔑 Modifier key pressed:', e.key, { metaKey: e.metaKey, ctrlKey: e.ctrlKey });
   }
 }
 
 function handleKeyUp(e: KeyboardEvent) {
-  if (e.key === 'Control') {
+  if (e.key === 'Control' || e.key === 'Meta' || (!e.metaKey && !e.ctrlKey)) {
     isCtrlPressed.value = false;
+    console.log('🔑 Modifier key released');
   }
 }
 
@@ -146,10 +148,22 @@ function closeInfoWindows() {
 
 // Enhanced map click handler for independent POI creation
 async function handleMapClick(event: any) {
-  // If POI Mode is ON and Ctrl is pressed, create independent POI
-  if (poiMode.value && isCtrlPressed.value && event.latLng) {
+  // Check if Ctrl/Command key is pressed (support both Mac Command and Windows/Linux Ctrl)
+  const isModifierPressed = event.domEvent?.metaKey || event.domEvent?.ctrlKey || isCtrlPressed.value;
+
+  console.log('🗺️ Map clicked:', {
+    poiMode: poiMode.value,
+    metaKey: event.domEvent?.metaKey,
+    ctrlKey: event.domEvent?.ctrlKey,
+    isCtrlPressed: isCtrlPressed.value,
+    hasLatLng: !!event.latLng
+  });
+
+  // If POI Mode is ON and Ctrl/Command is pressed, create independent POI
+  if (poiMode.value && isModifierPressed && event.latLng) {
     const clickedLat = event.latLng.lat();
     const clickedLng = event.latLng.lng();
+    console.log('🎯 Creating independent POI at:', clickedLat, clickedLng);
     await createIndependentPOI(clickedLat, clickedLng);
     return;
   }
