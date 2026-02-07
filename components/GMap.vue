@@ -973,7 +973,7 @@ function decodeHtml(html) {
                       <a :href="post.link" target="_blank" style="color: #1976d2; text-decoration: none; font-weight: 500">{{ decodeHtml(post.title.rendered) }}</a>
                     </h4>
                     <!-- div style="font-size: 0.85em; color: #666; margin-bottom: 5px">{{ new Date(post.date).toLocaleDateString("de-DE") }}</div-->
-                    <div style="font-size: 0.9em; line-height: 1.4; color: #333">{{ post.excerpt.rendered.replace(/<[^>]*>/g, '').substring(0, 150) }}...</div>
+                    <div style="font-size: 0.9em; line-height: 1.4; color: #333">{{ decodeHtml(post.excerpt.rendered.replace(/<[^>]*>/g, '').substring(0, 150)) }}...</div>
                   </div>
 
                   <div v-if="wordpressPosts[location.key].length > 3">
