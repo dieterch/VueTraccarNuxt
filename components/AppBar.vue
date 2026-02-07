@@ -34,9 +34,13 @@ async function update_travel(item) {
     renderMap()
 }
 
-const menuitems = ref(['Settings', 'About', 'Debug', 'POI Mode', 'Export als KML', 'Log Out', 'Prefetch again']) //, 'Export als GPX', 'Export als CSV', 'Export als PDF'])
+const menuitems = ref(['POI Mode', 'Settings', 'About', 'Debug', 'Export als KML', 'Log Out', 'Prefetch again']) //, 'Export als GPX', 'Export als CSV', 'Export als PDF'])
 async function domenu(item) {
     switch (item) {
+        case 'POI Mode':
+            poiMode.value = !poiMode.value
+            console.log('POI Mode toggled:', poiMode.value)
+            break;
         case 'Settings':
             configdialog.value = true
             break;
@@ -45,10 +49,6 @@ async function domenu(item) {
             break;
         case 'Debug':
             openSettingsDialog()
-            break;
-        case 'POI Mode':
-            poiMode.value = !poiMode.value
-            console.log('POI Mode toggled:', poiMode.value)
             break;
         case 'Export als KML':
             downloadKml()
@@ -167,7 +167,7 @@ onMounted(async () => {
                         <v-list-item-title @click="domenu(item)">
                             <template v-if="item === 'POI Mode'">
                                 <v-icon :icon="poiMode ? 'mdi-checkbox-marked' : 'mdi-checkbox-blank-outline'" size="small" class="mr-2"></v-icon>
-                                POI Mode {{ poiMode ? '(On)' : '(Off)' }}
+                                POI Mode
                             </template>
                             <template v-else>
                                 {{ item }}

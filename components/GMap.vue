@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick } from "vue";
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from "vue";
 import {
   GoogleMap,
   MarkerCluster,
@@ -110,11 +110,52 @@ const flightPath = ref({
 
 const mapRef = ref(null);
 
+// Track Ctrl key state for independent POI creation
+const isCtrlPressed = ref(false);
+
+// Keyboard event handlers
+function handleKeyDown(e: KeyboardEvent) {
+  if (e.key === 'Control') {
+    isCtrlPressed.value = true;
+  }
+}
+
+function handleKeyUp(e: KeyboardEvent) {
+  if (e.key === 'Control') {
+    isCtrlPressed.value = false;
+  }
+}
+
+// Setup keyboard listeners
+onMounted(() => {
+  window.addEventListener('keydown', handleKeyDown);
+  window.addEventListener('keyup', handleKeyUp);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeyDown);
+  window.removeEventListener('keyup', handleKeyUp);
+});
+
 function closeInfoWindows() {
   console.log("closeInfoWindows()");
   locations.value.forEach((location) => {
     location.infowindow = false;
   });
+}
+
+// Enhanced map click handler for independent POI creation
+async function handleMapClick(event: any) {
+  // If POI Mode is ON and Ctrl is pressed, create independent POI
+  if (poiMode.value && isCtrlPressed.value && event.latLng) {
+    const clickedLat = event.latLng.lat();
+    const clickedLng = event.latLng.lng();
+    await createIndependentPOI(clickedLat, clickedLng);
+    return;
+  }
+
+  // Otherwise, close info windows
+  closeInfoWindows();
 }
 
 const mddialog = ref(false);
@@ -603,6 +644,46 @@ async function reverseGeocodePOI(lat: number, lng: number) {
   }
 }
 
+// Find nearest point across ALL polylines (for independent POI creation)
+function findNearestPolylinePoint(lat: number, lng: number) {
+  let minDist = Infinity
+  let nearest = null
+
+  // Search through all visible polylines
+  for (const polyline of polylines.value) {
+    if (!polyline.path) continue
+
+    for (const pos of polyline.path) {
+      const dist = Math.sqrt(
+        Math.pow(pos.lat - lat, 2) +
+        Math.pow(pos.lng - lng, 2)
+      )
+      if (dist < minDist) {
+        minDist = dist
+        nearest = { ...pos, deviceId: polyline.deviceId }
+      }
+    }
+  }
+
+  return nearest
+}
+
+// Create independent POI (not restricted to polyline click)
+async function createIndependentPOI(lat: number, lng: number) {
+  const nearest = findNearestPolylinePoint(lat, lng)
+
+  if (!nearest || !nearest.timestamp) {
+    alert('Could not find nearby route. Please click closer to a route or ensure a route is displayed.')
+    return
+  }
+
+  console.log(`📍 Creating independent POI at (${lat.toFixed(6)}, ${lng.toFixed(6)})`)
+  console.log(`   Using timestamp from nearest point: ${nearest.timestamp}`)
+  console.log(`   Device ID: ${nearest.deviceId}`)
+
+  await createManualPOI(lat, lng, nearest.timestamp, nearest.deviceId)
+}
+
 // Delete POI
 async function deleteManualPOI(location: any) {
   const addressShort = location.address.split(',')[0]
@@ -675,7 +756,7 @@ async function deleteManualPOI(location: any) {
       style="width: 100%; height: 100%"
       :center="center"
       :zoom="zoom"
-      @click="closeInfoWindows"
+      @click="handleMapClick"
     >
     <!-- Render main device polylines -->
     <template v-if="togglepath && visiblePolylines.length > 0">
@@ -885,7 +966,7 @@ async function deleteManualPOI(location: any) {
               </div>
 
               <div style="margin-top: 15px; border-top: 2px solid #ddd; padding-top: 15px;">
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; gap: 6px;">
 
                   <v-btn color="primary" size="small" @click="openmddialog(location.key)">
                     <v-icon icon="mdi-notebook-edit" size="small"></v-icon>
@@ -935,21 +1016,23 @@ async function deleteManualPOI(location: any) {
                         location="top"
                       >Wordpress Marker kopieren</v-tooltip>
                   </v-btn>
-                </div>
-
-                <!-- POI Delete Section -->
-                <div v-if="location.isPOI" style="margin-top: 15px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.2);">
-                  <v-btn
+                  
+                  <!-- POI Delete Section -->
+                    <v-btn
+                    v-if="location.isPOI"
                     block
                     color="error"
-                    variant="elevated"
                     size="small"
                     @click="deleteManualPOI(location)"
-                  >
-                    <v-icon icon="mdi-delete" size="small" class="mr-2"></v-icon>
-                    POI löschen
+                    >
+                    <v-icon icon="mdi-delete" size="small"></v-icon>
+                      <v-tooltip
+                        activator="parent"
+                        location="top"
+                      >POI löschen</v-tooltip>
                   </v-btn>
-                </div>
+                <!--/div-->
+              </div>
               </div>
             </div>
           </div>
@@ -1019,7 +1102,7 @@ async function deleteManualPOI(location: any) {
             <v-icon icon="mdi-clock-start" size="x-small" color="primary"></v-icon>
             <span style="font-weight: 500; font-size: 12px;">Start</span>
           </div>
-          <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-bottom: 4px;">
+          <div style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; margin-bottom: 4px;">
             <button
               @click="adjustStandstillTime(currentAdjustmentLocation.key, 'start', -720)"
               style="padding: 4px; font-size: 11px; border: 1px solid #f44336; background: white; color: #f44336; border-radius: 4px; cursor: pointer;"
@@ -1032,6 +1115,14 @@ async function deleteManualPOI(location: any) {
               @click="adjustStandstillTime(currentAdjustmentLocation.key, 'start', -15)"
               style="padding: 4px; font-size: 11px; border: 1px solid #f44336; background: white; color: #f44336; border-radius: 4px; cursor: pointer;"
             >-15m</button>
+            <button
+              @click="adjustStandstillTime(currentAdjustmentLocation.key, 'start', -5)"
+              style="padding: 4px; font-size: 11px; border: 1px solid #f44336; background: white; color: #f44336; border-radius: 4px; cursor: pointer;"
+            >-5m</button>
+            <button
+              @click="adjustStandstillTime(currentAdjustmentLocation.key, 'start', 5)"
+              style="padding: 4px; font-size: 11px; border: 1px solid #4caf50; background: white; color: #4caf50; border-radius: 4px; cursor: pointer;"
+            >5m</button>
             <button
               @click="adjustStandstillTime(currentAdjustmentLocation.key, 'start', 15)"
               style="padding: 4px; font-size: 11px; border: 1px solid #4caf50; background: white; color: #4caf50; border-radius: 4px; cursor: pointer;"
@@ -1059,7 +1150,7 @@ async function deleteManualPOI(location: any) {
             <v-icon icon="mdi-clock-end" size="x-small" color="error"></v-icon>
             <span style="font-weight: 500; font-size: 12px;">Ende</span>
           </div>
-          <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-bottom: 4px;">
+          <div style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; margin-bottom: 4px;">
             <button
               @click="adjustStandstillTime(currentAdjustmentLocation.key, 'end', -720)"
               style="padding: 4px; font-size: 11px; border: 1px solid #f44336; background: white; color: #f44336; border-radius: 4px; cursor: pointer;"
@@ -1072,6 +1163,14 @@ async function deleteManualPOI(location: any) {
               @click="adjustStandstillTime(currentAdjustmentLocation.key, 'end', -15)"
               style="padding: 4px; font-size: 11px; border: 1px solid #f44336; background: white; color: #f44336; border-radius: 4px; cursor: pointer;"
             >-15m</button>
+            <button
+              @click="adjustStandstillTime(currentAdjustmentLocation.key, 'end', -5)"
+              style="padding: 4px; font-size: 11px; border: 1px solid #f44336; background: white; color: #f44336; border-radius: 4px; cursor: pointer;"
+            >-5m</button>
+            <button
+              @click="adjustStandstillTime(currentAdjustmentLocation.key, 'end', 5)"
+              style="padding: 4px; font-size: 11px; border: 1px solid #4caf50; background: white; color: #4caf50; border-radius: 4px; cursor: pointer;"
+            >+5m</button>
             <button
               @click="adjustStandstillTime(currentAdjustmentLocation.key, 'end', 15)"
               style="padding: 4px; font-size: 11px; border: 1px solid #4caf50; background: white; color: #4caf50; border-radius: 4px; cursor: pointer;"
