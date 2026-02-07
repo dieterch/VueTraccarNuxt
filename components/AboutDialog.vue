@@ -5,19 +5,29 @@ const { aboutdialog } = useMapData()
 
 // App information
 const appName = 'VueTraccarNuxt'
-const version = '1.0.0'
-const lastCommitDate = '2026-02-04'
+const version = '1.0.1'
+const lastCommitDate = '2026-02-07'
 
 const features = [
   'Real-time GPS tracking visualization',
   'Interactive map with route playback',
   'Travel history management',
   'Standstill detection and analysis',
+  'Manual POI creation (Cmd/Ctrl+Click)',
+  'POI Mode for independent markers',
   'KML export functionality',
   'Multi-device support',
   'SQLite-based route caching',
   'Event tracking and filtering',
   'Responsive design with Vuetify'
+]
+
+const scripts = [
+  'Export/Import timing adjustments',
+  'Export/Import travel patches',
+  'Export/Import manual POIs',
+  'Data backup and restore',
+  'Instance-to-instance migration'
 ]
 </script>
 
@@ -70,8 +80,33 @@ const features = [
           <v-divider class="my-4"></v-divider>
 
           <v-row>
+            <v-col cols="12">
+              <div class="text-subtitle-1 font-weight-bold mb-3">
+                Data Management Scripts
+              </div>
+              <v-list density="compact" class="bg-transparent">
+                <v-list-item
+                  v-for="(script, index) in scripts"
+                  :key="index"
+                  class="px-0"
+                >
+                  <template v-slot:prepend>
+                    <v-icon icon="mdi-console" color="blue" size="small" class="mr-2"></v-icon>
+                  </template>
+                  <v-list-item-title class="text-body-2">{{ script }}</v-list-item-title>
+                </v-list-item>
+              </v-list>
+              <div class="text-caption text-grey mt-2">
+                See /scripts/README.md for usage details
+              </div>
+            </v-col>
+          </v-row>
+
+          <v-divider class="my-4"></v-divider>
+
+          <v-row>
             <v-col cols="12" class="text-center text-body-2 text-grey">
-              Built with Vue 3, Nuxt 3 & Vuetify
+              Built with Vue 3, Nuxt 4 & Vuetify 3
             </v-col>
           </v-row>
         </v-container>

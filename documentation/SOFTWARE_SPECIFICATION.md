@@ -1,7 +1,7 @@
 # VueTraccarNuxt - Software Specification Document
 
-**Version:** 1.0.0
-**Last Updated:** 2026-02-05
+**Version:** 1.0.1
+**Last Updated:** 2026-02-07
 **Author:** Dieter Chvatal
 **Project Type:** GPS Tracking and Travel Management System
 
@@ -18,8 +18,10 @@ VueTraccarNuxt is a modern web application for GPS tracking, route visualization
 - Interactive Google Maps visualization
 - WordPress blog integration for travel documentation
 - RST document management for location notes
+- Manual POI creation and management (Cmd/Ctrl+Click on map)
 - KML export for route sharing
 - Comprehensive settings management with password protection
+- Data export/import scripts for backup and portability
 
 ---
 
@@ -103,6 +105,8 @@ VueTraccarNuxt is a modern web application for GPS tracking, route visualization
 
 2. **app.db** (Application database)
    - Travel patches configuration
+   - Standstill timing adjustments
+   - Manual POIs (user-created points of interest)
    - Settings storage
    - Application metadata
 
@@ -847,6 +851,39 @@ CREATE TABLE travel_patches (
 );
 
 CREATE INDEX idx_address_key ON travel_patches(address_key);
+```
+
+**Table: standstill_adjustments**
+```sql
+CREATE TABLE standstill_adjustments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  standstill_key TEXT UNIQUE NOT NULL,
+  start_adjustment_minutes INTEGER DEFAULT 0,
+  end_adjustment_minutes INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_standstill_key ON standstill_adjustments(standstill_key);
+```
+
+**Table: manual_pois**
+```sql
+CREATE TABLE manual_pois (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  poi_key TEXT UNIQUE NOT NULL,
+  latitude REAL NOT NULL,
+  longitude REAL NOT NULL,
+  timestamp TEXT NOT NULL,
+  device_id INTEGER NOT NULL,
+  address TEXT,
+  country TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_poi_key ON manual_pois(poi_key);
+CREATE INDEX idx_device_poi ON manual_pois(device_id, timestamp);
 ```
 
 ### 6.2 Configuration Files
@@ -1732,7 +1769,29 @@ certbot renew --dry-run
 - `data/cache/app.db`
 - `data/documents/`
 
-**Backup Script:**
+**Recommended Backup Method (Using Scripts):**
+```bash
+#!/bin/bash
+# Backup using data management scripts
+DATE=$(date +%Y%m%d)
+mkdir -p backups/$DATE
+
+# Export application data
+node scripts/export-timings.cjs backups/$DATE/timings.json
+node scripts/export-travel-patches.cjs backups/$DATE/patches.yml
+node scripts/export-manual-pois.cjs backups/$DATE/pois.json
+
+# Copy databases and documents
+cp data/cache/*.db backups/$DATE/
+cp -r data/documents backups/$DATE/
+cp data/settings.yml backups/$DATE/
+
+# Archive and compress
+tar -czf "backup-$DATE.tar.gz" backups/$DATE
+# Upload to S3/Backblaze/etc
+```
+
+**Alternative Backup Method (File-based):**
 ```bash
 #!/bin/bash
 DATE=$(date +%Y%m%d)
@@ -1740,7 +1799,26 @@ tar -czf "backup-$DATE.tar.gz" data/
 # Upload to S3/Backblaze/etc
 ```
 
-**Restoration:**
+**Restoration (Using Scripts):**
+```bash
+# Extract backup
+tar -xzf backup-20260207.tar.gz
+
+# Restore application data
+node scripts/import-timings.cjs backups/20260207/timings.json --replace
+node scripts/import-travel-patches.cjs backups/20260207/patches.yml --replace
+node scripts/import-manual-pois.cjs backups/20260207/pois.json --replace
+
+# Restore databases and documents
+cp backups/20260207/*.db data/cache/
+cp -r backups/20260207/documents data/
+cp backups/20260207/settings.yml data/
+
+# Restart app
+pm2 restart vue-traccar
+```
+
+**Alternative Restoration (File-based):**
 ```bash
 tar -xzf backup-20260205.tar.gz
 # Restart app
@@ -1790,7 +1868,287 @@ npm audit fix
 - Backup before migration
 - Test rollback procedure
 
-### 14.3 Troubleshooting
+### 14.3 Data Management Scripts
+
+The `/scripts` directory contains utility scripts for exporting and importing application data, enabling data portability between instances and providing backup/restore capabilities.
+
+#### 14.3.1 Overview
+
+**Purpose:**
+- Backup and restore application data
+- Transfer data between different instances
+- Migrate data during upgrades
+- Data portability and disaster recovery
+
+**Script Categories:**
+1. **Timing Adjustments** - Export/import standstill timing modifications
+2. **Travel Patches** - Export/import travel configuration overrides
+3. **Manual POIs** - Export/import user-created points of interest
+
+**Technology:**
+- Runtime: Node.js (CommonJS)
+- Database: better-sqlite3
+- Format: JSON (timings, manual POIs), YAML (travel patches)
+
+#### 14.3.2 Timing Adjustment Scripts
+
+**export-timings.cjs**
+
+Exports all standstill timing adjustments from the database to a timestamped JSON file.
+
+```bash
+# Export to timestamped file (default)
+node scripts/export-timings.cjs
+
+# Export to specific file
+node scripts/export-timings.cjs my-timings.json
+
+# Export to absolute path
+node scripts/export-timings.cjs /path/to/backup/timings.json
+```
+
+**Output Format:**
+```json
+{
+  "exported_at": "2026-02-07T13:58:00.000Z",
+  "database": "/path/to/app.db",
+  "count": 5,
+  "adjustments": [
+    {
+      "standstill_key": "marker406560077881",
+      "start_adjustment_minutes": 0,
+      "end_adjustment_minutes": 1440,
+      "created_at": "2026-02-05 19:49:49",
+      "updated_at": "2026-02-05 19:53:58"
+    }
+  ]
+}
+```
+
+**import-timings.cjs**
+
+Imports standstill timing adjustments from JSON file into the database.
+
+```bash
+# Import and merge with existing data (default)
+node scripts/import-timings.cjs timings-export.json
+
+# Preview import without making changes
+node scripts/import-timings.cjs timings-export.json --dry-run
+
+# Replace all existing adjustments
+node scripts/import-timings.cjs timings-export.json --replace
+```
+
+**Options:**
+- `--dry-run` - Preview changes without committing
+- `--merge` - Merge with existing data (default)
+- `--replace` - Delete all existing data before import
+
+#### 14.3.3 Travel Patch Scripts
+
+**export-travel-patches.cjs**
+
+Exports travel patch adjustments to YAML file matching the format of `data/travels.yml`.
+
+```bash
+# Export to default location (data/travel-patches.yml)
+node scripts/export-travel-patches.cjs
+
+# Export to specific file
+node scripts/export-travel-patches.cjs my-patches.yml
+
+# Export to absolute path
+node scripts/export-travel-patches.cjs /path/to/backup/travel-patches.yml
+```
+
+**Output Format:**
+```yaml
+Mobilheimplatz 6237/113, 7141 Podersdorf am See, Austria:
+  title: 2020 Ossiacher See, Bad Waltersdorf, Podersdorf am See
+  from: null
+  to: null
+  exclude: null
+Camping Azzurro - Ledro, Via Alzer, 5, 38067 Pieve di Ledro TN, Italy:
+  title: 2020 Camping Azzurro - Ledro See
+  from: null
+  to: '2020-08-01'
+  exclude: null
+```
+
+**import-travel-patches.cjs**
+
+Imports travel patch adjustments from YAML file into the database.
+
+```bash
+# Import and merge with existing data
+node scripts/import-travel-patches.cjs travel-patches.yml
+
+# Preview import without making changes
+node scripts/import-travel-patches.cjs travel-patches.yml --dry-run
+
+# Replace all existing patches
+node scripts/import-travel-patches.cjs travel-patches.yml --replace
+```
+
+#### 14.3.4 Manual POI Scripts
+
+**export-manual-pois.cjs**
+
+Exports all manual POIs (user-created points of interest) to JSON file.
+
+```bash
+# Export to timestamped file (default)
+node scripts/export-manual-pois.cjs
+
+# Export to specific file
+node scripts/export-manual-pois.cjs my-pois.json
+```
+
+**Output Format:**
+```json
+{
+  "exported_at": "2026-02-07T13:58:00.000Z",
+  "database": "/path/to/app.db",
+  "count": 3,
+  "pois": [
+    {
+      "id": 1,
+      "poi_key": "manual_poi_12345",
+      "latitude": 48.2082,
+      "longitude": 16.3738,
+      "timestamp": "2026-02-07T12:00:00.000Z",
+      "device_id": 1,
+      "address": "Stephansplatz, 1010 Wien, Austria",
+      "country": "Austria",
+      "created_at": "2026-02-07T12:00:00.000Z",
+      "updated_at": "2026-02-07T12:00:00.000Z"
+    }
+  ]
+}
+```
+
+**import-manual-pois.cjs**
+
+Imports manual POIs from JSON file into the database.
+
+```bash
+# Import and merge with existing data
+node scripts/import-manual-pois.cjs manual-pois-export.json
+
+# Preview import without making changes
+node scripts/import-manual-pois.cjs manual-pois-export.json --dry-run
+
+# Replace all existing POIs
+node scripts/import-manual-pois.cjs manual-pois-export.json --replace
+```
+
+#### 14.3.5 Common Workflows
+
+**Complete Backup:**
+```bash
+# Create backup directory
+mkdir -p backups/$(date +%Y%m%d)
+
+# Export all data types
+node scripts/export-timings.cjs backups/$(date +%Y%m%d)/timings.json
+node scripts/export-travel-patches.cjs backups/$(date +%Y%m%d)/patches.yml
+node scripts/export-manual-pois.cjs backups/$(date +%Y%m%d)/pois.json
+
+# Archive databases and documents
+cp data/cache/*.db backups/$(date +%Y%m%d)/
+cp -r data/documents backups/$(date +%Y%m%d)/
+```
+
+**Transfer to Another Instance:**
+```bash
+# On source instance
+node scripts/export-timings.cjs timings-transfer.json
+node scripts/export-travel-patches.cjs patches-transfer.yml
+node scripts/export-manual-pois.cjs pois-transfer.json
+
+# Copy to target instance (example using scp)
+scp *-transfer.* user@target-server:/path/to/target/instance/
+
+# On target instance
+node scripts/import-timings.cjs timings-transfer.json
+node scripts/import-travel-patches.cjs patches-transfer.yml
+node scripts/import-manual-pois.cjs pois-transfer.json
+```
+
+**Restore from Backup:**
+```bash
+# Restore all data types (replace mode)
+node scripts/import-timings.cjs backups/20260207/timings.json --replace
+node scripts/import-travel-patches.cjs backups/20260207/patches.yml --replace
+node scripts/import-manual-pois.cjs backups/20260207/pois.json --replace
+```
+
+#### 14.3.6 Merge vs Replace Modes
+
+**Merge Mode (Default):**
+- Keeps existing records not in import file
+- Updates existing records if key matches
+- Adds new records from import file
+- **Use when:** Adding/updating specific records without losing others
+
+**Replace Mode (`--replace`):**
+- Deletes ALL existing records first
+- Imports all records from file
+- **Use when:** Complete replacement with imported dataset
+
+#### 14.3.7 Data Structures
+
+**Standstill Adjustments Table:**
+```sql
+CREATE TABLE standstill_adjustments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  standstill_key TEXT UNIQUE NOT NULL,
+  start_adjustment_minutes INTEGER DEFAULT 0,
+  end_adjustment_minutes INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+**Manual POIs Table:**
+```sql
+CREATE TABLE manual_pois (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  poi_key TEXT UNIQUE NOT NULL,
+  latitude REAL NOT NULL,
+  longitude REAL NOT NULL,
+  timestamp TEXT NOT NULL,
+  device_id INTEGER NOT NULL,
+  address TEXT,
+  country TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+#### 14.3.8 Script Usage Notes
+
+**Requirements:**
+- Node.js 14+
+- better-sqlite3 package (included in project dependencies)
+- Database path: `data/app.db` (relative to project root)
+
+**Features:**
+- Transactional operations (atomic commits)
+- Timestamp preservation during export/import
+- Validation of required fields
+- Clear error messages
+- Progress indicators
+
+**Best Practices:**
+- Always use `--dry-run` first to preview changes
+- Create backups before using `--replace` mode
+- Verify export file contents before importing
+- Keep backup files in version control (git LFS) or cloud storage
+- Test restore procedures regularly
+
+### 14.4 Troubleshooting
 
 **Common Issues:**
 
@@ -1822,7 +2180,14 @@ npm audit fix
    - Verify file permissions
    - Rebuild cache: `GET /api/delprefetch` then `/api/prefetchroute`
 
-### 14.4 Documentation
+6. **Script execution errors:**
+   - Ensure running from project root or scripts directory
+   - Check database exists at `data/app.db`
+   - Verify read/write permissions
+   - Check file format (JSON for timings/POIs, YAML for patches)
+   - Review error messages for validation failures
+
+### 14.5 Documentation
 
 **User Guide (Future):**
 - Getting started
@@ -1972,7 +2337,7 @@ npm audit fix
 
 ## 17. Change Log
 
-### Version 1.0.0 (2026-02-05)
+### Version 1.0.0 (2026-02-07)
 
 **Major Changes:**
 - ✅ Separated databases (route.db for caching, app.db for settings)
@@ -1983,6 +2348,12 @@ npm audit fix
 - ✅ Settings management UI for all configuration
 - ✅ WordPress integration for standstill markers in KML
 - ✅ KML export with standstill locations
+- ✅ Manual POI creation (Cmd/Ctrl+Click on map)
+- ✅ POI Mode toggle for independent point-of-interest markers
+- ✅ Data management scripts for export/import:
+  - export/import-timings.cjs (standstill adjustments)
+  - export/import-travel-patches.cjs (travel configuration)
+  - export/import-manual-pois.cjs (user-created POIs)
 - ✅ About dialog with version info
 - ✅ Cache status endpoint (GET /api/cache-status)
 - ✅ Multiple bug fixes and optimizations
@@ -2092,11 +2463,12 @@ See `package.json` for full list. Key dependencies:
 
 ## Document Information
 
-**Generated:** 2026-02-05
+**Generated:** 2026-02-07
+**Last Updated:** 2026-02-07
 **Format:** Markdown
-**Version:** 1.0.0
+**Version:** 1.0.1
 **Author:** Claude Sonnet 4.5 (based on git commits and project analysis)
-**Word Count:** ~11,500 words
-**Page Count:** ~60 pages (printed)
+**Word Count:** ~13,000 words
+**Page Count:** ~65 pages (printed)
 
 This specification document provides comprehensive coverage of the VueTraccarNuxt application, from architecture to deployment. It serves as both technical documentation for developers and reference material for stakeholders.

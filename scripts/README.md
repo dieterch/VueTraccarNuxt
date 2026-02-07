@@ -8,6 +8,9 @@ These scripts allow you to:
 - **Export** timing adjustments from the database to a JSON file
 - **Import** timing adjustments from a JSON file into the database
 - **Export** travel patch adjustments from the database to a YML file
+- **Import** travel patch adjustments from a YML file into the database
+- **Export** manual POIs from the database to a JSON file
+- **Import** manual POIs from a JSON file into the database
 - Transfer data between different application instances
 - Backup and restore data
 
@@ -165,6 +168,100 @@ node scripts/import-timings.cjs timings-export.json --replace
 node scripts/import-timings.cjs /path/to/timings.json
 ```
 
+### export-manual-pois.cjs
+
+Exports all manual POIs (Points of Interest) from the database to a JSON file.
+
+**Usage:**
+```bash
+node scripts/export-manual-pois.cjs [output-file]
+```
+
+**Examples:**
+```bash
+# Export to a timestamped file (default)
+node scripts/export-manual-pois.cjs
+
+# Export to a specific file
+node scripts/export-manual-pois.cjs my-pois.json
+
+# Export to an absolute path
+node scripts/export-manual-pois.cjs /path/to/backup/manual-pois.json
+```
+
+**Output Format:**
+```json
+{
+  "exported_at": "2026-02-07T13:58:00.000Z",
+  "database": "/path/to/app.db",
+  "count": 3,
+  "pois": [
+    {
+      "id": 1,
+      "poi_key": "manual_poi_12345",
+      "latitude": 48.2082,
+      "longitude": 16.3738,
+      "timestamp": "2026-02-07T12:00:00.000Z",
+      "device_id": 1,
+      "address": "Stephansplatz, 1010 Wien, Austria",
+      "country": "Austria",
+      "created_at": "2026-02-07T12:00:00.000Z",
+      "updated_at": "2026-02-07T12:00:00.000Z"
+    }
+  ]
+}
+```
+
+### import-manual-pois.cjs
+
+Imports manual POIs from a JSON file into the database.
+
+**Usage:**
+```bash
+node scripts/import-manual-pois.cjs <input-file> [options]
+```
+
+**Options:**
+- `--dry-run` - Show what would be imported without making changes
+- `--merge` - Merge with existing data (default behavior)
+- `--replace` - Delete all existing POIs before import
+
+**Examples:**
+```bash
+# Import and merge with existing data (default)
+node scripts/import-manual-pois.cjs manual-pois-export.json
+
+# Preview import without making changes
+node scripts/import-manual-pois.cjs manual-pois-export.json --dry-run
+
+# Replace all existing POIs
+node scripts/import-manual-pois.cjs manual-pois-export.json --replace
+
+# Import from an absolute path
+node scripts/import-manual-pois.cjs /path/to/manual-pois.json
+```
+
+**Input Format:**
+The input JSON file should match the export format:
+```json
+{
+  "exported_at": "2026-02-07T13:58:00.000Z",
+  "database": "/path/to/app.db",
+  "count": 3,
+  "pois": [
+    {
+      "poi_key": "manual_poi_12345",
+      "latitude": 48.2082,
+      "longitude": 16.3738,
+      "timestamp": "2026-02-07T12:00:00.000Z",
+      "device_id": 1,
+      "address": "Stephansplatz, 1010 Wien, Austria",
+      "country": "Austria"
+    }
+  ]
+}
+```
+
 ## Typical Workflows
 
 ### Backing Up Travel Patches
@@ -229,6 +326,37 @@ node scripts/import-timings.cjs timings-to-transfer.json
 node scripts/import-timings.cjs timings-to-transfer.json --replace
 ```
 
+### Backing Up Manual POIs
+
+```bash
+# Export current manual POIs
+cd /path/to/VueTraccarNuxt
+node scripts/export-manual-pois.cjs manual-pois-backup-$(date +%Y%m%d).json
+```
+
+### Transferring Manual POIs to Another Instance
+
+**On source instance:**
+```bash
+# Export manual POIs
+node scripts/export-manual-pois.cjs manual-pois.json
+
+# Copy file to target instance (example using scp)
+scp manual-pois.json user@target-server:/path/to/target/instance/
+```
+
+**On target instance:**
+```bash
+# Preview what will be imported
+node scripts/import-manual-pois.cjs manual-pois.json --dry-run
+
+# Import POIs (merge with existing)
+node scripts/import-manual-pois.cjs manual-pois.json
+
+# OR replace all existing POIs
+node scripts/import-manual-pois.cjs manual-pois.json --replace
+```
+
 ### Restoring from Backup
 
 ```bash
@@ -237,6 +365,9 @@ node scripts/import-travel-patches.cjs data/travel-patches-backup-20260206.yml -
 
 # Restore timing adjustments from backup
 node scripts/import-timings.cjs backup-20260206.json --replace
+
+# Restore manual POIs from backup
+node scripts/import-manual-pois.cjs manual-pois-backup-20260206.json --replace
 ```
 
 ## Data Structures
@@ -269,18 +400,37 @@ The timing scripts work with the `standstill_adjustments` table which has the fo
 | `created_at` | TEXT | ISO timestamp of creation |
 | `updated_at` | TEXT | ISO timestamp of last update |
 
+### Manual POIs
+
+The manual POI scripts work with the `manual_pois` table which has the following structure:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | INTEGER | Auto-incrementing primary key |
+| `poi_key` | TEXT | Unique identifier for the POI (e.g., "manual_poi_12345") |
+| `latitude` | REAL | Latitude coordinate of the POI |
+| `longitude` | REAL | Longitude coordinate of the POI |
+| `timestamp` | TEXT | ISO timestamp when the POI was created/recorded |
+| `device_id` | INTEGER | Device ID associated with the POI |
+| `address` | TEXT | Full address of the POI location |
+| `country` | TEXT | Country where the POI is located |
+| `created_at` | TEXT | ISO timestamp of creation |
+| `updated_at` | TEXT | ISO timestamp of last update |
+
+**Note:** Manual POIs are independent points of interest created by users (e.g., via Cmd/Ctrl+Click on the map) and are not associated with device trips.
+
 ## Merge vs Replace Mode
 
 ### Merge Mode (Default)
-- Keeps existing adjustments that aren't in the import file
-- Updates existing adjustments if the `standstill_key` matches
-- Adds new adjustments from the import file
-- **Use when:** You want to add/update specific adjustments without losing others
+- Keeps existing records that aren't in the import file
+- Updates existing records if the key matches (`standstill_key`, `address_key`, or `poi_key`)
+- Adds new records from the import file
+- **Use when:** You want to add/update specific records without losing others
 
 ### Replace Mode (`--replace`)
-- Deletes ALL existing adjustments first
-- Then imports all adjustments from the file
-- **Use when:** You want to completely replace all adjustments with the imported set
+- Deletes ALL existing records first
+- Then imports all records from the file
+- **Use when:** You want to completely replace all data with the imported set
 
 ## Notes
 
@@ -302,8 +452,9 @@ The timing scripts work with the `standstill_adjustments` table which has the fo
 - Check that the database exists at `data/app.db`
 
 **Invalid file format:**
-- Ensure the JSON file has the correct structure with an `adjustments` array
-- Use the export script to create properly formatted files
+- Ensure JSON files have the correct structure (with `adjustments` or `pois` array as appropriate)
+- Ensure YML files follow the expected format for travel patches
+- Use the corresponding export script to create properly formatted files
 
 **Permission errors:**
 - Ensure you have read/write permissions for the database file
