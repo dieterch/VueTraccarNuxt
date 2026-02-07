@@ -733,6 +733,13 @@ async function deleteManualPOI(location: any) {
     isLoading.value = false
   }
 }
+
+function decodeHtml(html) {
+  const txt = document.createElement("textarea")
+  txt.innerHTML = html
+  return txt.value
+}
+
 </script>
 
 <template>
@@ -963,9 +970,9 @@ async function deleteManualPOI(location: any) {
                 <div v-if="wordpressPosts[location.key] && wordpressPosts[location.key].length > 0">
                   <div v-for="post in wordpressPosts[location.key].slice(0, 3)" :key="post.id" style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 0px solid #e0e0e0">
                     <h4 style="margin: 0 0 5px 0; font-size: 1em">
-                      <a :href="post.link" target="_blank" style="color: #1976d2; text-decoration: none; font-weight: 500">{{ post.title.rendered }}</a>
+                      <a :href="post.link" target="_blank" style="color: #1976d2; text-decoration: none; font-weight: 500">{{ decodeHtml(post.title.rendered) }}</a>
                     </h4>
-                    <div style="font-size: 0.85em; color: #666; margin-bottom: 5px">{{ new Date(post.date).toLocaleDateString("de-DE") }}</div>
+                    <!-- div style="font-size: 0.85em; color: #666; margin-bottom: 5px">{{ new Date(post.date).toLocaleDateString("de-DE") }}</div-->
                     <div style="font-size: 0.9em; line-height: 1.4; color: #333">{{ post.excerpt.rendered.replace(/<[^>]*>/g, '').substring(0, 150) }}...</div>
                   </div>
 
